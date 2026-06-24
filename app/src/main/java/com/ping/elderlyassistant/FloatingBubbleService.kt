@@ -166,8 +166,6 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                             append("已完成：「${state.transcript}」")
                             if (state.llmStats != null)
                                 append("\n速度：%.1f t/s".format(state.llmStats.decodeSpeedTps))
-                            if (state.actionJson != null)
-                                append("\n動作：${state.actionJson.take(60)}")
                         }
                         updatePanel(msg, listening = false)
                     }
@@ -240,7 +238,14 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         handler.removeCallbacks(resetTap)
         if (tapCount >= 3) { tapCount = 0; stopSelf(); return }
         handler.postDelayed(resetTap, TRIPLE_TAP_MS)
-        if (!isExpanded) showPanel() else dismissPanel()
+        if (!isExpanded) showPanel()
+        else {
+            // Mirror the ✕ button: always cancel any in-progress pipeline when dismissing,
+            // otherwise a recording that started behind the panel continues invisibly and
+            // the blocking overlay appears with no panel context for the user.
+            pipeline.cancel()
+            dismissPanel()
+        }
     }
 
     // ── Expanded panel ────────────────────────────────────────────────────────
@@ -343,6 +348,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
         et.text?.clear()
         collapseTextInput()
+        pipeline.cancel()        // abort recording/transcribing if user submits text mid-voice
         pipeline.startWithText(text)
     }
 

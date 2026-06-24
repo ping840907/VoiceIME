@@ -150,7 +150,7 @@ class PipelineOrchestrator(private val context: Context) {
 
     private suspend fun runLlmLoop(transcript: String) {
         if (!llm.isLoaded()) {
-            emitTerminal(State.Done(transcript = transcript, actionJson = null, llmStats = null))
+            emitTerminal(State.Error("模型尚未載入，請稍候再試"))
             return
         }
 

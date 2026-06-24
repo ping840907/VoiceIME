@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.ping.elderlyassistant.BuildConfig
 
 /**
  * Core accessibility bridge.
@@ -64,8 +65,7 @@ class AssistantAccessibilityService : AccessibilityService() {
                 if (pkg == currentPackage) return      // same app, ignore
                 currentPackage = pkg
                 Log.i(TAG_WINDOW, "App switched → $pkg | class=${event.className}")
-                // Dump full node tree on every app switch for Phase 1 debugging
-                logNodeTree()
+                if (BuildConfig.DEBUG) logNodeTree()
             }
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {

@@ -5,6 +5,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.WindowManager
@@ -59,7 +60,12 @@ class BlockingOverlay(private val context: Context) {
             view.findViewById<Button>(R.id.btn_overlay_cancel)?.setOnClickListener { onCancel() }
 
             overlayView = view
-            windowManager.addView(view, params)
+            try {
+                windowManager.addView(view, params)
+            } catch (ex: Exception) {
+                Log.e("BlockingOverlay", "addView failed — overlay permission revoked?: ${ex.message}")
+                overlayView = null
+            }
         }
     }
 

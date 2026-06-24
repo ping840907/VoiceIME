@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             else getColor(R.color.permission_missing)
         )
 
-        btnToggleService.isEnabled = allOk
+        btnToggleService.isEnabled = allOk || serviceRunning
         btnToggleService.text = if (serviceRunning)
             getString(R.string.btn_stop_service)
         else
