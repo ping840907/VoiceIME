@@ -79,7 +79,8 @@ class AudioRecorder {
         val minFrames     = (minSeconds * SAMPLE_RATE).toInt()
         val silenceFrames = (silenceSeconds * SAMPLE_RATE).toInt()
 
-        val allSamples  = ArrayList<Short>(maxFrames)
+        val allSamples  = ShortArray(maxFrames)
+        var sampleCount = 0
         val chunkBuffer = ShortArray(CHUNK_FRAMES)
         var silenceCount = 0
         var stopReason   = StopReason.TIMEOUT
@@ -92,14 +93,16 @@ class AudioRecorder {
                 val read = recorder.read(chunkBuffer, 0, CHUNK_FRAMES)
                 if (read <= 0) continue
 
-                for (i in 0 until read) allSamples.add(chunkBuffer[i])
+                val copyCount = minOf(read, maxFrames - sampleCount)
+                System.arraycopy(chunkBuffer, 0, allSamples, sampleCount, copyCount)
+                sampleCount += copyCount
 
                 val rms = computeRms(chunkBuffer, read)
                 val isSilent = rms < silenceThreshold
 
                 if (isSilent) silenceCount += read else silenceCount = 0
 
-                val totalFrames = allSamples.size
+                val totalFrames = sampleCount
                 if (totalFrames >= maxFrames) {
                     stopReason = StopReason.TIMEOUT; break
                 }
@@ -115,9 +118,9 @@ class AudioRecorder {
             recorder.release()
         }
 
-        val floatSamples = convertToFloat(allSamples)
-        val durationSec  = allSamples.size.toFloat() / SAMPLE_RATE
-        Log.i(TAG, "Recording stopped (${durationSec.format()}s, $stopReason, ${allSamples.size} samples)")
+        val floatSamples = convertToFloat(allSamples, sampleCount)
+        val durationSec  = sampleCount.toFloat() / SAMPLE_RATE
+        Log.i(TAG, "Recording stopped (${durationSec.format()}s, $stopReason, $sampleCount samples)")
         Recording(floatSamples, durationSec, stopReason)
     }
 
@@ -132,9 +135,9 @@ class AudioRecorder {
         return sqrt(sum / len).toFloat()
     }
 
-    private fun convertToFloat(shorts: ArrayList<Short>): FloatArray {
-        val out = FloatArray(shorts.size)
-        for (i in shorts.indices) out[i] = shorts[i] / 32768.0f
+    private fun convertToFloat(shorts: ShortArray, count: Int): FloatArray {
+        val out = FloatArray(count)
+        for (i in 0 until count) out[i] = shorts[i] / 32768.0f
         return out
     }
 

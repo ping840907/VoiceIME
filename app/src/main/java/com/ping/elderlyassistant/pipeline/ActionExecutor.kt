@@ -171,9 +171,13 @@ class ActionExecutor(private val context: Context) {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
             ?: return Result.Failure("裝置上找不到 App：$pkg")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-        context.startActivity(intent)
-        delay(POST_NAVIGATE_DELAY)
-        return Result.Success
+        return try {
+            context.startActivity(intent)
+            delay(POST_NAVIGATE_DELAY)
+            Result.Success
+        } catch (ex: android.content.ActivityNotFoundException) {
+            Result.Failure("無法啟動 App：$pkg")
+        }
     }
 
     // ── Node traversal helpers ────────────────────────────────────────────────

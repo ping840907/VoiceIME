@@ -3,6 +3,8 @@ package com.ping.elderlyassistant.engine
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -49,44 +51,48 @@ class SenseVoiceEngine(private val context: Context) {
 
     // Held as Any to avoid hard compile dependency when AAR is absent
     @Volatile private var recognizer: Any? = null   // com.k2fsa.sherpa.onnx.OfflineRecognizer
+    private val loadMutex = Mutex()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     data class LoadResult(val success: Boolean, val error: String? = null)
 
-    suspend fun load(): LoadResult = withContext(Dispatchers.IO) {
-        if (!isSherpaAvailable) {
-            return@withContext LoadResult(
-                success = false,
-                error = "sherpa-onnx AAR missing. See SenseVoiceEngine.kt setup."
-            )
-        }
+    suspend fun load(): LoadResult = loadMutex.withLock {
+        if (isLoaded()) return@withLock LoadResult(success = true)
+        withContext(Dispatchers.IO) {
+            if (!isSherpaAvailable) {
+                return@withContext LoadResult(
+                    success = false,
+                    error = "sherpa-onnx AAR missing. See SenseVoiceEngine.kt setup."
+                )
+            }
 
-        val modelPath  = ModelConfig.senseVoiceModelPath(context)
-        val tokensPath = ModelConfig.senseVoiceTokensPath(context)
+            val modelPath  = ModelConfig.senseVoiceModelPath(context)
+            val tokensPath = ModelConfig.senseVoiceTokensPath(context)
 
-        if (!File(modelPath).exists()) {
-            return@withContext LoadResult(
-                success = false,
-                error = "SenseVoice model not found: $modelPath"
-            )
-        }
-        if (!File(tokensPath).exists()) {
-            return@withContext LoadResult(
-                success = false,
-                error = "Tokens file not found: $tokensPath"
-            )
-        }
+            if (!File(modelPath).exists()) {
+                return@withContext LoadResult(
+                    success = false,
+                    error = "SenseVoice model not found: $modelPath"
+                )
+            }
+            if (!File(tokensPath).exists()) {
+                return@withContext LoadResult(
+                    success = false,
+                    error = "Tokens file not found: $tokensPath"
+                )
+            }
 
-        release()   // clean up any previous instance
+            release()   // clean up any previous instance
 
-        return@withContext try {
-            recognizer = buildRecognizer(modelPath, tokensPath)
-            Log.i(TAG, "SenseVoice loaded (model=$modelPath)")
-            LoadResult(success = true)
-        } catch (ex: Exception) {
-            Log.e(TAG, "Failed to load SenseVoice: ${ex.message}", ex)
-            LoadResult(success = false, error = ex.message)
+            try {
+                recognizer = buildRecognizer(modelPath, tokensPath)
+                Log.i(TAG, "SenseVoice loaded (model=$modelPath)")
+                LoadResult(success = true)
+            } catch (ex: Exception) {
+                Log.e(TAG, "Failed to load SenseVoice: ${ex.message}", ex)
+                LoadResult(success = false, error = ex.message)
+            }
         }
     }
 

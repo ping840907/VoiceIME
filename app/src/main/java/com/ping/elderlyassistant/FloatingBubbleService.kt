@@ -87,9 +87,9 @@ class FloatingBubbleService : Service(), LifecycleOwner {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        _lifecycle.currentState = Lifecycle.State.CREATED
-        _lifecycle.currentState = Lifecycle.State.STARTED
-        _lifecycle.currentState = Lifecycle.State.RESUMED
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         pipeline = PipelineOrchestrator(this)
@@ -116,7 +116,9 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
     override fun onDestroy() {
         isRunning = false
-        _lifecycle.currentState = Lifecycle.State.DESTROYED
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        _lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         blockingOverlay.hide()
         removeAllViews()
         pipeline.destroy()
@@ -196,7 +198,12 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
         bubbleView = LayoutInflater.from(this).inflate(R.layout.layout_bubble_collapsed, null)
         attachDragTap()
-        windowManager.addView(bubbleView, bubbleParams)
+        try {
+            windowManager.addView(bubbleView, bubbleParams)
+        } catch (ex: Exception) {
+            Log.e(TAG, "addBubble failed — overlay permission revoked?: ${ex.message}")
+            stopSelf()
+        }
     }
 
     // ── Drag + tap discrimination ─────────────────────────────────────────────
@@ -281,7 +288,14 @@ class FloatingBubbleService : Service(), LifecycleOwner {
             false
         }
 
-        windowManager.addView(expandedView, params)
+        try {
+            windowManager.addView(expandedView, params)
+        } catch (ex: Exception) {
+            Log.e(TAG, "showPanel failed: ${ex.message}")
+            isExpanded = false
+            expandedView = null
+            expandedParams = null
+        }
     }
 
     private fun dismissPanel() {

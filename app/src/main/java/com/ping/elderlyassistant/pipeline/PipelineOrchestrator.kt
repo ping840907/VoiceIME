@@ -126,6 +126,10 @@ class PipelineOrchestrator(private val context: Context) {
             emitTerminal(State.Error("錄音失敗，請重試")); return
         }
 
+        // If cancel() was called during recording, stop here rather than overwriting the
+        // Idle state that cancel() already set with a new Transcribing state.
+        ensureActive()
+
         // 2. Transcribe (SenseVoice-Small)
         _state.value = State.Transcribing(recording.durationSeconds)
 
@@ -220,9 +224,12 @@ class PipelineOrchestrator(private val context: Context) {
     }
 
     fun destroy() {
-        recorder.stopEarly()
+        // Cancel the active pipeline job and stop the recorder BEFORE releasing native
+        // resources. asr.release() / llm.unload() must not run while a coroutine may
+        // still be inside asr.transcribe() or llm.generate() on a Dispatchers.IO thread.
+        cancel()
+        scope.cancel()
         asr.release()
         llm.unload()
-        scope.cancel()
     }
 }
