@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="bubble_size">64dp</dimen>
+    <dimen name="panel_padding">20dp</dimen>
+    <dimen name="mic_button_size">80dp</dimen>
+</resources>

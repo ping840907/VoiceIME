@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">語音助理</string>
+    <string name="accessibility_service_label">長輩語音助理</string>
+    <string name="accessibility_service_description">允許語音助理讀取畫面內容，以便執行您的語音指令（例如：撥打電話、發送訊息）。本服務不會收集或上傳任何個人資料。</string>
+
+    <!-- MainActivity -->
+    <string name="title_setup">助理設定</string>
+    <string name="desc_overlay_permission">懸浮視窗權限</string>
+    <string name="desc_overlay_detail">允許助理氣泡顯示在其他應用程式上方</string>
+    <string name="desc_accessibility_permission">無障礙服務</string>
+    <string name="desc_accessibility_detail">允許助理讀取畫面並執行操作</string>
+    <string name="btn_grant">前往授權</string>
+    <string name="btn_granted">已授權 ✓</string>
+    <string name="btn_start_service">啟動語音助理</string>
+    <string name="btn_stop_service">停止語音助理</string>
+    <string name="status_all_ready">所有權限已授予，可以啟動助理</string>
+    <string name="status_needs_permission">請授予所有必要權限</string>
+
+    <!-- Bubble UI -->
+    <string name="bubble_tap_hint">點擊說話</string>
+    <string name="bubble_listening">聆聽中…</string>
+    <string name="bubble_processing">處理中…</string>
+    <string name="bubble_collapse">關閉</string>
+    <string name="bubble_title">語音助理</string>
+    <string name="bubble_node_captured">已讀取畫面，請說出指令</string>
+    <string name="bubble_accessibility_off">請先啟用無障礙服務</string>
+</resources>
