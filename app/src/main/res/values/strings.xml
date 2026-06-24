@@ -14,7 +14,8 @@
     <string name="btn_start_service">啟動語音助理</string>
     <string name="btn_stop_service">停止語音助理</string>
     <string name="status_all_ready">所有權限已授予，可以啟動助理</string>
-    <string name="status_needs_permission">請授予所有必要權限</string>
+    <string name="status_needs_permission">請授予所有必要權限（共三項）</string>
+    <string name="btn_grant_mic">授予麥克風權限</string>
 
     <!-- Bubble UI -->
     <string name="bubble_tap_hint">點擊說話</string>
