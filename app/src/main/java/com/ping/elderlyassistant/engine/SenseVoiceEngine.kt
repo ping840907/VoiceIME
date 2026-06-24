@@ -134,27 +134,24 @@ class SenseVoiceEngine(private val context: Context) {
             val streamObj  = r.javaClass.getMethod("createStream").invoke(r)!!
             val streamCls  = streamObj.javaClass
 
-            // stream.acceptSamples(FloatArray)
-            streamCls.getMethod("acceptSamples", FloatArray::class.java)
-                .invoke(streamObj, samples)
-
-            // recognizer.decode(stream)
-            r.javaClass.getMethod("decode", streamCls).invoke(r, streamObj)
-
-            // result = recognizer.getResult(stream)
-            val resultObj = r.javaClass.getMethod("getResult", streamCls)
-                .invoke(r, streamObj)!!
-            val text      = resultObj.javaClass.getMethod("getText").invoke(resultObj)
-                as? String ?: ""
-
-            // Log emotion if the result exposes it
-            runCatching {
-                val emotion = resultObj.javaClass.getMethod("getEmotion").invoke(resultObj)
-                val lang    = resultObj.javaClass.getMethod("getLang").invoke(resultObj)
-                Log.d(TAG, "emotion=$emotion  lang=$lang")
+            // Use try-finally so the native stream is always released, even on exception.
+            var text = ""
+            try {
+                streamCls.getMethod("acceptSamples", FloatArray::class.java)
+                    .invoke(streamObj, samples)
+                r.javaClass.getMethod("decode", streamCls).invoke(r, streamObj)
+                val resultObj = r.javaClass.getMethod("getResult", streamCls)
+                    .invoke(r, streamObj)!!
+                text = resultObj.javaClass.getMethod("getText").invoke(resultObj)
+                    as? String ?: ""
+                runCatching {
+                    val emotion = resultObj.javaClass.getMethod("getEmotion").invoke(resultObj)
+                    val lang    = resultObj.javaClass.getMethod("getLang").invoke(resultObj)
+                    Log.d(TAG, "emotion=$emotion  lang=$lang")
+                }
+            } finally {
+                runCatching { streamCls.getMethod("release").invoke(streamObj) }
             }
-
-            streamCls.getMethod("release").invoke(streamObj)
 
             val ms = System.currentTimeMillis() - t0
             Log.i(TAG, "SenseVoice transcribed ${samples.size / 16000f}s audio in ${ms}ms: \"$text\"")

@@ -274,7 +274,10 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         }
 
         expandedView?.setOnTouchListener { _, e ->
-            if (e.action == MotionEvent.ACTION_OUTSIDE) dismissPanel()
+            // Only dismiss on outside tap when the pipeline is idle — tapping the blocking
+            // overlay during automation would otherwise close the panel unexpectedly.
+            if (e.action == MotionEvent.ACTION_OUTSIDE &&
+                pipeline.state.value is PipelineOrchestrator.State.Idle) dismissPanel()
             false
         }
 

@@ -71,6 +71,7 @@ class AudioRecorder {
 
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             Log.e(TAG, "AudioRecord init failed")
+            recorder.release()   // must release even on failed init to free kernel buffer
             return@withContext Recording(FloatArray(0), 0f, StopReason.ERROR)
         }
 

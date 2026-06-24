@@ -87,6 +87,14 @@ object PromptBuilder {
         appendLine("輸出：{\"action\":\"done\",\"reason\":\"電話已成功撥出，目前通話中\"}")
     }
 
+    // ── App package name hints for open_app ──────────────────────────────────
+    private val APP_PACKAGES_HINT = buildString {
+        appendLine("## 常用 App 套件名稱（open_app 時使用）")
+        for ((name, pkg) in COMMON_APP_PACKAGES.entries.distinctBy { it.value }) {
+            appendLine("$name → $pkg")
+        }
+    }.trim()
+
     // ── System prompt (Qwen3 ChatML with /no_think) ───────────────────────────
     private val SYSTEM_PROMPT = buildString {
         appendLine("/no_think")
@@ -95,6 +103,8 @@ object PromptBuilder {
         appendLine("規則：只輸出 JSON，不加任何說明、不用 markdown 包裝。")
         appendLine()
         appendLine(ACTION_SCHEMA)
+        appendLine()
+        appendLine(APP_PACKAGES_HINT)
         appendLine()
         appendLine(FEW_SHOT)
     }.trim()

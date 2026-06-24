@@ -19,6 +19,9 @@
     <!-- Battery optimization exemption: prevents OS from killing the foreground service -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Required on Android 14+ (targetSdk 34) for foreground services that use the microphone -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -42,7 +45,8 @@
         <service
             android:name=".FloatingBubbleService"
             android:exported="false"
-            android:stopWithTask="false" />
+            android:stopWithTask="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Accessibility service: reads screen content and simulates taps -->
         <service

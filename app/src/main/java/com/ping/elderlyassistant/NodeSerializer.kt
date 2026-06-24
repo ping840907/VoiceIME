@@ -128,13 +128,12 @@ object NodeSerializer {
         return score
     }
 
-    /** For LLM: de-dup, skip pure containers, sort interactive nodes first. */
+    /** For LLM: sort by relevanceScore (interactive nodes first), de-dup, skip pure containers. */
     private fun pruneForLlm(nodes: List<NodeInfo>, max: Int): List<NodeInfo> {
         val seen = mutableSetOf<String>()
         val result = mutableListOf<NodeInfo>()
 
-        // Pass 1: interactive nodes
-        for (n in nodes) {
+        for (n in nodes.sortedByDescending { it.score }) {
             if (result.size >= max) break
             val cls = simpleClassName(n.node.className?.toString())
             if (cls in CONTAINER_CLASSES && n.node.text.isNullOrBlank() &&

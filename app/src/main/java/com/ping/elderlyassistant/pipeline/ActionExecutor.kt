@@ -111,7 +111,8 @@ class ActionExecutor(private val context: Context) {
 
     private suspend fun executeType(svc: AssistantAccessibilityService, json: JSONObject): Result {
         val id   = json.optString("id").trim()
-        val text = json.getString("text")
+        val text = json.optString("text")   // getString would throw if key absent (LLM hallucination)
+        if (text.isBlank()) return Result.Failure("type 動作缺少 text 欄位")
         val root = svc.rootInActiveWindow ?: return Result.Failure("rootInActiveWindow 為空")
 
         val target: AccessibilityNodeInfo? = when {
