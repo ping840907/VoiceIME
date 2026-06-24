@@ -100,6 +100,15 @@ class AssistantAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Compact LLM-optimised serialisation (≤35 nodes, interactive-first).
+     * Use this variant when building the Qwen3 prompt to stay within the token budget.
+     */
+    fun captureNodeTreeForLlm(): NodeSerializer.SerializedTree? {
+        val root: AccessibilityNodeInfo = rootInActiveWindow ?: return null
+        return NodeSerializer.serializeForLlm(root, currentPackage)
+    }
+
+    /**
      * Performs a click on the node whose viewIdResourceName matches [nodeId].
      * Returns true if the node was found and clicked.
      *

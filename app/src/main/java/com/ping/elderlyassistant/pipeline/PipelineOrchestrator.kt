@@ -10,51 +10,38 @@ import com.ping.elderlyassistant.engine.SenseVoiceEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Central coordinator for the voice assistant pipeline.
+ * Central coordinator for the voice-to-action pipeline.
  *
- * ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐   ┌─────────────────────┐
- * │ AudioRecorder│──>│SenseVoice ASR│──>│  Qwen3-1.7B LLM   │──>│ AccessibilityService│
- * │ (16kHz mono) │   │ (sherpa-onnx)│   │ (mlc4j / OpenCL)  │   │ (click / type)      │
- * └──────────────┘   └──────────────┘   └───────────────────┘   └─────────────────────┘
+ * ┌──────────────┐   ┌──────────────────┐   ┌───────────────────┐   ┌─────────────────────┐
+ * │ AudioRecorder│──>│ SenseVoice ASR   │──>│  Qwen3-1.7B LLM   │──>│ AccessibilityService│
+ * │ (16 kHz mono)│   │ (sherpa-onnx AAR)│   │ (mlc4j / OpenCL)  │   │ (click / type / …)  │
+ * └──────────────┘   └──────────────────┘   └───────────────────┘   └─────────────────────┘
  *
- * Phase 2: Steps 1-2 (record → transcribe) fully functional.
- *          Step 3 (LLM) loads when mlc4j AAR + Qwen3-1.7B weights are present.
- *          Step 4 (execute) — stubs present, fully wired in Phase 3.
+ * Multi-step loop (Phase 3):
+ *   After transcription, the orchestrator enters an action loop:
+ *   capture screen → LLM generates JSON → ActionExecutor runs it → repeat until
+ *   ActionExecutor.Result.Done, Blocked, Failure, or AutomationGuard.MAX_STEPS is reached.
  */
 class PipelineOrchestrator(private val context: Context) {
 
     companion object {
         private const val TAG = "Pipeline"
-
-        // ── Qwen3 system prompt ───────────────────────────────────────────────
-        // `/no_think` disables Qwen3's chain-of-thought mode → raw JSON, faster.
-        // Few-shot examples added in Phase 3 once real node-tree formats are known.
-        private val SYSTEM_PROMPT = """
-            /no_think
-            你是一位專為長輩設計的手機操作助理。
-            根據使用者的語音指令和畫面節點資訊，輸出一個 JSON 動作物件。
-            只輸出 JSON，不要任何說明或 Markdown 包裝。
-
-            支援的動作格式（擇一輸出）：
-            {"action":"click","id":"<viewIdResourceName>"}
-            {"action":"type","id":"<viewIdResourceName>","text":"<input text>"}
-            {"action":"scroll","direction":"up|down"}
-            {"action":"back"}
-            {"action":"home"}
-            {"action":"unknown","reason":"<中文說明無法執行的原因>"}
-        """.trimIndent()
     }
 
     // ── Engines ───────────────────────────────────────────────────────────────
     private val asr      by lazy { SenseVoiceEngine(context) }
     private val llm      by lazy { MlcLlmEngine(context) }
     private val recorder = AudioRecorder()
+    private val executor = ActionExecutor(context)
 
     // ── Observable state ──────────────────────────────────────────────────────
     sealed class State {
@@ -74,19 +61,18 @@ class PipelineOrchestrator(private val context: Context) {
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state
 
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var pipelineJob: Job? = null
 
     // ── Pre-warming ───────────────────────────────────────────────────────────
 
     /** Call once from FloatingBubbleService.onCreate() to warm engines in background. */
     fun preloadModels() {
         scope.launch {
-            // ASR
             val asrResult = asr.load()
             if (asrResult.success) Log.i(TAG, "SenseVoice loaded ✓")
             else Log.w(TAG, "SenseVoice unavailable: ${asrResult.error}")
 
-            // LLM (only if mlc4j is on the classpath)
             if (MlcLlmEngine.isMlcAvailable) {
                 val llmResult = llm.load()
                 if (llmResult.success) Log.i(TAG, "Qwen3 loaded ✓  stats=${llm.lastStats()}")
@@ -102,10 +88,17 @@ class PipelineOrchestrator(private val context: Context) {
             Log.w(TAG, "Pipeline busy — ignoring startListening()")
             return
         }
-        scope.launch { runPipeline() }
+        pipelineJob = scope.launch { runPipeline() }
     }
 
     fun stopRecordingEarly() = recorder.stopEarly()
+
+    /** Abort any active pipeline step and return to Idle. */
+    fun cancel() {
+        pipelineJob?.cancel()
+        recorder.stopEarly()
+        _state.value = State.Idle
+    }
 
     // ── Pipeline implementation ───────────────────────────────────────────────
 
@@ -116,97 +109,71 @@ class PipelineOrchestrator(private val context: Context) {
         val recording = recorder.recordUntilSilence()
 
         if (recording.samples.isEmpty() || recording.stopReason == AudioRecorder.StopReason.ERROR) {
-            emit(State.Error("錄音失敗，請重試")); return
+            emitTerminal(State.Error("錄音失敗，請重試")); return
         }
 
-        // ── 2. Transcribe (SenseVoice) ────────────────────────────────────────
+        // ── 2. Transcribe (SenseVoice-Small) ─────────────────────────────────
         _state.value = State.Transcribing(recording.durationSeconds)
 
         if (!asr.isLoaded()) {
             val res = asr.load()
-            if (!res.success) { emit(State.Error("語音辨識未就緒：${res.error}")); return }
+            if (!res.success) { emitTerminal(State.Error("語音辨識未就緒：${res.error}")); return }
         }
 
         val transcript = asr.transcribe(recording.samples)
-        if (transcript.isBlank()) { emit(State.Error("未偵測到語音，請重說")); return }
+        if (transcript.isBlank()) { emitTerminal(State.Error("未偵測到語音，請重說")); return }
         Log.i(TAG, "Transcript: \"$transcript\"")
 
-        // ── 3. LLM inference (Qwen3-1.7B) ────────────────────────────────────
+        // ── 3. LLM + action multi-step loop (Qwen3-1.7B) ─────────────────────
         if (!llm.isLoaded()) {
-            // Phase 2: show transcript without LLM action
-            emit(State.Done(transcript = transcript, actionJson = null, llmStats = null))
+            emitTerminal(State.Done(transcript = transcript, actionJson = null, llmStats = null))
             return
         }
 
-        _state.value = State.Thinking(transcript)
-        val nodeTree = AssistantAccessibilityService.instance?.captureNodeTree()
-        val prompt   = buildPrompt(transcript, nodeTree?.text)
+        val history     = mutableListOf<Pair<String, String>>()
+        var lastJson:  String?                   = null
+        var lastStats: LlmEngine.InferenceStats? = null
+        var finalError: String?                  = null
 
-        val fullResponse = llm.generate(prompt, onToken = { /* streaming UI can hook here */ })
-        val stats        = llm.lastStats()
-        Log.i(TAG, "LLM: $stats")
+        val completed = AutomationGuard.withGuard {
+            for (step in 0 until AutomationGuard.MAX_STEPS) {
+                // Re-capture screen on every step so the LLM sees updated state
+                val svc      = AssistantAccessibilityService.instance
+                val nodeTree = svc?.captureNodeTreeForLlm()?.text ?: ""
+                val prompt   = PromptBuilder.build(transcript, nodeTree, history)
 
-        // ── 4. Execute action ─────────────────────────────────────────────────
-        val json = extractJson(fullResponse)
-        if (json != null) {
-            _state.value = State.Executing(json)
-            executeAction(json)
-        }
+                _state.value = State.Thinking(transcript)
+                val rawResponse = llm.generate(prompt, onToken = {})
+                lastStats       = llm.lastStats()
+                Log.i(TAG, "Step ${step + 1}/${AutomationGuard.MAX_STEPS}  " +
+                        "stats=$lastStats  raw=\"${rawResponse.take(120)}\"")
 
-        emit(State.Done(transcript = transcript, actionJson = json, llmStats = stats))
-    }
-
-    // ── Qwen3 ChatML prompt ───────────────────────────────────────────────────
-
-    private fun buildPrompt(instruction: String, nodeTree: String?): String {
-        val nodes = if (!nodeTree.isNullOrBlank())
-            "## 當前畫面節點\n$nodeTree"
-        else
-            "## 當前畫面節點\n(無法取得 — 請確認無障礙服務已啟用)"
-
-        return buildString {
-            append("<|im_start|>system\n")
-            append(SYSTEM_PROMPT)
-            append("\n<|im_end|>\n")
-            append("<|im_start|>user\n")
-            append("## 使用者指令\n$instruction\n\n")
-            append(nodes)
-            append("\n<|im_end|>\n")
-            append("<|im_start|>assistant\n")
-        }
-    }
-
-    // ── Action execution ──────────────────────────────────────────────────────
-
-    private fun executeAction(json: String) {
-        val svc = AssistantAccessibilityService.instance ?: run {
-            Log.w(TAG, "AccessibilityService not connected — cannot execute action")
-            return
-        }
-        try {
-            val obj = JSONObject(json)
-            when (val action = obj.optString("action")) {
-                "click" -> {
-                    val id = obj.getString("id")
-                    val ok = svc.performClickById(id)
-                    Log.i(TAG, "click id=$id ok=$ok")
+                val json = extractJson(rawResponse)
+                if (json == null) {
+                    finalError = "模型輸出格式錯誤，請重試"; break
                 }
-                "type" -> {
-                    val id   = obj.getString("id")
-                    val text = obj.getString("text")
-                    svc.performTypeById(id, text)
-                    Log.i(TAG, "type id=$id text=$text")
+                lastJson         = json
+                _state.value     = State.Executing(json)
+
+                when (val result = executor.execute(json)) {
+                    is ActionExecutor.Result.Done    -> break
+                    is ActionExecutor.Result.Blocked -> { finalError = result.message; break }
+                    is ActionExecutor.Result.Failure -> {
+                        finalError = "執行失敗：${result.reason}"; break
+                    }
+                    is ActionExecutor.Result.Success -> {
+                        history.add(transcript to json)
+                        delay(AutomationGuard.STEP_SETTLE_MS)
+                    }
                 }
-                "back"   -> svc.performGlobalAction(
-                    android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-                "home"   -> svc.performGlobalAction(
-                    android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
-                "scroll" -> Log.d(TAG, "scroll reserved for Phase 3")
-                "unknown"-> Log.w(TAG, "LLM unknown: ${obj.optString("reason")}")
-                else     -> Log.w(TAG, "Unrecognised action: $action")
             }
-        } catch (ex: Exception) {
-            Log.e(TAG, "executeAction error: ${ex.message}")
+        }
+
+        // ── 4. Emit final state ───────────────────────────────────────────────
+        when {
+            completed == null  -> emitTerminal(State.Error("操作逾時，已自動停止"))
+            finalError != null -> emitTerminal(State.Error(finalError!!))
+            else               -> emitTerminal(State.Done(transcript, lastJson, lastStats))
         }
     }
 
@@ -219,10 +186,14 @@ class PipelineOrchestrator(private val context: Context) {
         return runCatching { JSONObject(candidate); candidate }.getOrNull()
     }
 
-    private fun emit(s: State) {
+    /**
+     * Set terminal state (Done / Error) and schedule an auto-reset to Idle
+     * after 3.5 s so the UI does not stay stuck on a result screen.
+     */
+    private fun emitTerminal(s: State) {
         _state.value = s
         scope.launch {
-            kotlinx.coroutines.delay(3_500)
+            delay(3_500)
             if (_state.value is State.Done || _state.value is State.Error)
                 _state.value = State.Idle
         }
@@ -232,5 +203,6 @@ class PipelineOrchestrator(private val context: Context) {
         recorder.stopEarly()
         asr.release()
         llm.unload()
+        scope.cancel()
     }
 }

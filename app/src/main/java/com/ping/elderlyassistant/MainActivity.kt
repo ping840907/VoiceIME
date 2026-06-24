@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
@@ -16,23 +17,26 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
 /**
- * Setup screen — guides the user through three one-time steps before the
+ * Setup screen — guides the user through four one-time steps before the
  * floating bubble can be started:
- *   1. RECORD_AUDIO         — runtime permission (shows system dialog)
- *   2. SYSTEM_ALERT_WINDOW  — overlay permission (Settings page)
- *   3. Accessibility service — Settings page
+ *   1. RECORD_AUDIO                  — runtime permission (shows system dialog)
+ *   2. SYSTEM_ALERT_WINDOW           — overlay permission (Settings page)
+ *   3. Accessibility service         — Settings page
+ *   4. Battery optimization exemption — prevents the OS from killing the service
  *
- * Once all three are granted, the "啟動語音助理" button starts FloatingBubbleService.
+ * Once all four are granted, the "啟動語音助理" button starts FloatingBubbleService.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tvMicStatus:           TextView
     private lateinit var tvOverlayStatus:       TextView
     private lateinit var tvAccessibilityStatus: TextView
+    private lateinit var tvBatteryStatus:       TextView
     private lateinit var tvOverallStatus:       TextView
     private lateinit var btnMic:                Button
     private lateinit var btnOverlay:            Button
     private lateinit var btnAccessibility:      Button
+    private lateinit var btnBattery:            Button
     private lateinit var btnToggleService:      Button
 
     private var serviceRunning = false
@@ -50,10 +54,12 @@ class MainActivity : AppCompatActivity() {
         tvMicStatus           = findViewById(R.id.tv_mic_status)
         tvOverlayStatus       = findViewById(R.id.tv_overlay_status)
         tvAccessibilityStatus = findViewById(R.id.tv_accessibility_status)
+        tvBatteryStatus       = findViewById(R.id.tv_battery_status)
         tvOverallStatus       = findViewById(R.id.tv_overall_status)
         btnMic                = findViewById(R.id.btn_mic_permission)
         btnOverlay            = findViewById(R.id.btn_overlay_permission)
         btnAccessibility      = findViewById(R.id.btn_accessibility_permission)
+        btnBattery            = findViewById(R.id.btn_battery_permission)
         btnToggleService      = findViewById(R.id.btn_toggle_service)
 
         btnMic.setOnClickListener {
@@ -61,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         }
         btnOverlay.setOnClickListener { openOverlaySettings() }
         btnAccessibility.setOnClickListener { openAccessibilitySettings() }
+        btnBattery.setOnClickListener { openBatterySettings() }
         btnToggleService.setOnClickListener { toggleService() }
     }
 
@@ -85,17 +92,24 @@ class MainActivity : AppCompatActivity() {
             .any { it.resolveInfo.serviceInfo.packageName == packageName }
     }
 
+    private fun hasBatteryOptimizationExemption(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
     // ── UI refresh ────────────────────────────────────────────────────────────
 
     private fun refreshPermissionUI() {
-        val micOk    = hasMicPermission()
-        val overlayOk = hasOverlayPermission()
-        val accessOk  = hasAccessibilityPermission()
-        val allOk     = micOk && overlayOk && accessOk
+        val micOk      = hasMicPermission()
+        val overlayOk  = hasOverlayPermission()
+        val accessOk   = hasAccessibilityPermission()
+        val batteryOk  = hasBatteryOptimizationExemption()
+        val allOk      = micOk && overlayOk && accessOk && batteryOk
 
         setStatus(tvMicStatus, btnMic, micOk, "已授權", "未授權", "授予麥克風權限")
         setStatus(tvOverlayStatus, btnOverlay, overlayOk, "已授權", "未授權", "前往授權")
         setStatus(tvAccessibilityStatus, btnAccessibility, accessOk, "已啟用", "未啟用", "前往啟用")
+        setStatus(tvBatteryStatus, btnBattery, batteryOk, "已豁免", "未豁免", "前往設定")
 
         tvOverallStatus.text = if (allOk)
             getString(R.string.status_all_ready)
@@ -139,6 +153,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun openAccessibilitySettings() =
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
+    private fun openBatterySettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            runCatching {
+                startActivity(
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName"))
+                )
+            }.onFailure {
+                // Fallback: open general battery settings if direct intent is blocked by OEM
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+    }
 
     // ── Service control ───────────────────────────────────────────────────────
 

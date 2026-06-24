@@ -14,7 +14,6 @@
     <string name="btn_start_service">啟動語音助理</string>
     <string name="btn_stop_service">停止語音助理</string>
     <string name="status_all_ready">所有權限已授予，可以啟動助理</string>
-    <string name="status_needs_permission">請授予所有必要權限（共三項）</string>
     <string name="btn_grant_mic">授予麥克風權限</string>
 
     <!-- Bubble UI -->
@@ -25,4 +24,15 @@
     <string name="bubble_title">語音助理</string>
     <string name="bubble_node_captured">已讀取畫面，請說出指令</string>
     <string name="bubble_accessibility_off">請先啟用無障礙服務</string>
+
+    <!-- Blocking overlay (Phase 4) -->
+    <string name="overlay_executing">自動操作中…</string>
+    <string name="overlay_thinking">AI 思考中…</string>
+    <string name="overlay_cancel">取消操作</string>
+
+    <!-- Battery optimization card (Phase 4) -->
+    <string name="title_battery_opt">省電優化</string>
+    <string name="desc_battery_opt_detail">防止系統在背景關閉語音助理，確保隨時可用</string>
+    <string name="btn_battery_exempt">前往設定</string>
+    <string name="status_needs_permission">請授予所有必要權限（共四項）</string>
 </resources>

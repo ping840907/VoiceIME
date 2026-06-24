@@ -19,6 +19,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.lifecycleScope
+import com.ping.elderlyassistant.pipeline.BlockingOverlay
 import com.ping.elderlyassistant.pipeline.PipelineOrchestrator
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
     private var isExpanded = false
 
     private lateinit var pipeline: PipelineOrchestrator
+    private lateinit var blockingOverlay: BlockingOverlay
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         pipeline = PipelineOrchestrator(this)
+        blockingOverlay = BlockingOverlay(this)
         pipeline.preloadModels()
 
         createNotificationChannel()
@@ -94,6 +97,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
     override fun onDestroy() {
         _lifecycle.currentState = Lifecycle.State.DESTROYED
+        blockingOverlay.hide()
         removeAllViews()
         pipeline.destroy()
         Log.i(TAG, "FloatingBubbleService stopped")
@@ -108,8 +112,10 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         lifecycleScope.launch {
             pipeline.state.collectLatest { state ->
                 when (state) {
-                    is PipelineOrchestrator.State.Idle ->
+                    is PipelineOrchestrator.State.Idle -> {
+                        blockingOverlay.hide()
                         updatePanel(getString(R.string.bubble_tap_hint), listening = false)
+                    }
 
                     is PipelineOrchestrator.State.Recording ->
                         updatePanel(getString(R.string.bubble_listening), listening = true)
@@ -117,13 +123,20 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                     is PipelineOrchestrator.State.Transcribing ->
                         updatePanel("辨識中 (%.1fs)…".format(state.durationSec), listening = false)
 
-                    is PipelineOrchestrator.State.Thinking ->
+                    is PipelineOrchestrator.State.Thinking -> {
+                        blockingOverlay.show(
+                            getString(R.string.overlay_thinking)
+                        ) { pipeline.cancel() }
                         updatePanel("理解中：「${state.transcript}」", listening = false)
+                    }
 
-                    is PipelineOrchestrator.State.Executing ->
+                    is PipelineOrchestrator.State.Executing -> {
+                        blockingOverlay.updateStatus(getString(R.string.overlay_executing))
                         updatePanel("執行中…", listening = false)
+                    }
 
                     is PipelineOrchestrator.State.Done -> {
+                        blockingOverlay.hide()
                         val msg = buildString {
                             append("已辨識：「${state.transcript}」")
                             if (state.llmStats != null) {
@@ -136,8 +149,10 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                         updatePanel(msg, listening = false)
                     }
 
-                    is PipelineOrchestrator.State.Error ->
+                    is PipelineOrchestrator.State.Error -> {
+                        blockingOverlay.hide()
                         updatePanel("錯誤：${state.message}", listening = false)
+                    }
                 }
             }
         }
@@ -219,7 +234,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         expandedView = LayoutInflater.from(this).inflate(R.layout.layout_bubble_expanded, null)
 
         expandedView?.findViewById<TextView>(R.id.btn_collapse)?.setOnClickListener {
-            pipeline.stopRecordingEarly()
+            pipeline.cancel()
             dismissPanel()
         }
 

@@ -183,6 +183,57 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- 4. Battery optimization card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="12dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/title_battery_opt"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121" />
+                    <TextView
+                        android:id="@+id/tv_battery_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="未豁免"
+                        android:textSize="14sp"
+                        android:textColor="@color/permission_missing" />
+                </LinearLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="@string/desc_battery_opt_detail"
+                    android:textSize="14sp"
+                    android:textColor="#757575" />
+                <Button
+                    android:id="@+id/btn_battery_permission"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:text="@string/btn_battery_exempt"
+                    android:textSize="16sp"
+                    android:backgroundTint="@color/blue_700" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- Status -->
         <TextView
             android:id="@+id/tv_overall_status"
