@@ -54,13 +54,26 @@ class MlcLlmEngine(private val context: Context) : LlmEngine {
     //   private var engine: MLCEngine? = null
 
     @Volatile private var engineInstance: Any? = null   // ai.mlc.mlcllm.MLCEngine
-    @Volatile private var _loaded = false
+    @Volatile private var _loaded    = false
+    @Volatile private var _activeLib = ""              // which lib succeeded, for logging
     private var _stats = LlmEngine.InferenceStats()
 
     // ── LlmEngine ─────────────────────────────────────────────────────────────
 
     override fun isLoaded(): Boolean = _loaded
 
+    /**
+     * Loads the LLM by trying [ModelConfig.llmLibCandidates] in priority order:
+     *
+     *   1. Qualcomm QNN (Hexagon NPU)  — fastest; requires QNN SDK + custom compile
+     *   2. MediaTek APU (NeuroPilot)   — fastest on MTK; requires NeuroPilot SDK + custom compile
+     *   3. OpenCL GPU                  — standard mlc4j AAR; works on Adreno + Mali GPUs
+     *   4. ARM64 CPU (LLVM)            — always works; ~10–50× slower than GPU
+     *
+     * Absent .so files are caught as exceptions and skipped automatically.
+     * The active backend is logged at INFO level once loading succeeds.
+     * Note: Vulkan is excluded — not supported in the standard Android mlc4j AAR.
+     */
     override suspend fun load(): LlmEngine.LoadResult = withContext(Dispatchers.IO) {
         if (!isMlcAvailable) {
             return@withContext LlmEngine.LoadResult(
@@ -69,24 +82,43 @@ class MlcLlmEngine(private val context: Context) : LlmEngine {
             )
         }
 
-        val modelDir = ModelConfig.qwenModelDir(context)
-        val modelLib = ModelConfig.QWEN_MODEL_LIB
-        Log.i(TAG, "Loading model from $modelDir  lib=$modelLib")
+        val modelDir   = ModelConfig.qwenModelDir(context)
+        val candidates = ModelConfig.llmLibCandidates()
+        Log.i(TAG, "Loading LLM from $modelDir")
+        Log.i(TAG, "Device SoC : ${ModelConfig.detectSocString()}")
+        Log.i(TAG, "Lib candidates: $candidates")
 
-        try {
+        return@withContext try {
             val engineClass = Class.forName("ai.mlc.mlcllm.MLCEngine")
-            val inst = engineClass.getDeclaredConstructor().newInstance()
+            var lastEx: Exception? = null
 
-            // engine.reload(modelPath: String, modelLib: String)
-            engineClass.getMethod("reload", String::class.java, String::class.java)
-                .invoke(inst, modelDir, modelLib)
+            for (modelLib in candidates) {
+                try {
+                    // Create a fresh engine instance for each attempt; a failed reload()
+                    // leaves the instance in an undefined state.
+                    val inst = engineClass.getDeclaredConstructor().newInstance()
+                    engineClass.getMethod("reload", String::class.java, String::class.java)
+                        .invoke(inst, modelDir, modelLib)
 
-            engineInstance = inst
-            _loaded = true
-            Log.i(TAG, "Model loaded successfully")
-            LlmEngine.LoadResult(success = true)
+                    engineInstance = inst
+                    _loaded        = true
+                    _activeLib     = modelLib
+                    Log.i(TAG, "LLM loaded  lib='$modelLib'")
+                    return@withContext LlmEngine.LoadResult(success = true)
+                } catch (ex: Exception) {
+                    Log.w(TAG, "LLM lib '$modelLib' failed: ${ex.message}")
+                    lastEx = ex
+                }
+            }
+
+            val tried = candidates.joinToString()
+            Log.e(TAG, "All LLM candidates failed. Tried: $tried")
+            LlmEngine.LoadResult(
+                success = false,
+                error   = "No compatible model lib found. Tried: $tried"
+            )
         } catch (ex: Exception) {
-            Log.e(TAG, "load() failed: ${ex.message}", ex)
+            Log.e(TAG, "load() unexpected error: ${ex.message}", ex)
             _loaded = false
             LlmEngine.LoadResult(success = false, error = ex.message)
         }

@@ -69,13 +69,15 @@ class PipelineOrchestrator(private val context: Context) {
     fun preloadModels() {
         scope.launch {
             val asrResult = asr.load()
-            if (asrResult.success) Log.i(TAG, "SenseVoice loaded ✓")
+            if (asrResult.success) Log.i(TAG, "SenseVoice ready ✓")
             else Log.w(TAG, "SenseVoice unavailable: ${asrResult.error}")
 
             if (MlcLlmEngine.isMlcAvailable) {
                 val llmResult = llm.load()
-                if (llmResult.success) Log.i(TAG, "Qwen3 loaded ✓  stats=${llm.lastStats()}")
+                if (llmResult.success) Log.i(TAG, "Qwen3 ready ✓")
                 else Log.w(TAG, "Qwen3 unavailable: ${llmResult.error}")
+            } else {
+                Log.w(TAG, "mlc4j AAR not found — LLM inference disabled")
             }
         }
     }

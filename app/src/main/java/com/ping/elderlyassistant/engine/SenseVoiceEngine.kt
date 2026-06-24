@@ -51,6 +51,7 @@ class SenseVoiceEngine(private val context: Context) {
 
     // Held as Any to avoid hard compile dependency when AAR is absent
     @Volatile private var recognizer: Any? = null   // com.k2fsa.sherpa.onnx.OfflineRecognizer
+    @Volatile private var activeProvider = "cpu"    // set after successful load, for logging
     private val loadMutex = Mutex()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -86,11 +87,13 @@ class SenseVoiceEngine(private val context: Context) {
             release()   // clean up any previous instance
 
             try {
-                recognizer = buildRecognizer(modelPath, tokensPath)
-                Log.i(TAG, "SenseVoice loaded (model=$modelPath)")
+                val (rec, provider) = buildRecognizerWithFallback(modelPath, tokensPath)
+                recognizer     = rec
+                activeProvider = provider
+                Log.i(TAG, "SenseVoice loaded (provider='$provider'  model=$modelPath)")
                 LoadResult(success = true)
             } catch (ex: Exception) {
-                Log.e(TAG, "Failed to load SenseVoice: ${ex.message}", ex)
+                Log.e(TAG, "Failed to load SenseVoice on all providers: ${ex.message}", ex)
                 LoadResult(success = false, error = ex.message)
             }
         }
@@ -170,75 +173,82 @@ class SenseVoiceEngine(private val context: Context) {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun buildRecognizer(modelPath: String, tokensPath: String): Any {
-        // When AAR is present, this is equivalent to:
-        //
-        //   OfflineRecognizer(config = OfflineRecognizerConfig(
-        //       featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
-        //       modelConfig = OfflineModelConfig(
-        //           senseVoice = OfflineSenseVoiceModelConfig(
-        //               model    = modelPath,
-        //               language = ModelConfig.ASR_LANGUAGE,
-        //               useItn   = ModelConfig.ASR_USE_ITN
-        //           ),
-        //           tokens     = tokensPath,
-        //           numThreads = ModelConfig.SENSE_VOICE_THREADS,
-        //           provider   = "cpu",
-        //           debug      = BuildConfig.DEBUG
-        //       ),
-        //       decodingMethod = "greedy_search"
-        //   ))
-
+    /**
+     * Tries each ONNX Runtime provider from [ModelConfig.ASR_PROVIDER_PRIORITY] in order.
+     * Returns the first (recognizer, providerName) pair that constructs without error.
+     * Throws if all providers fail.
+     *
+     * Provider priority:
+     *   "nnapi" — Android NNAPI; delegates compatible ops to NPU/DSP/GPU.
+     *             ONNX Runtime falls back per-op to CPU for unsupported ops, so
+     *             construction should succeed on any Android 8.1+ device.
+     *   "cpu"   — pure-software fallback; always works.
+     */
+    private fun buildRecognizerWithFallback(
+        modelPath: String, tokensPath: String
+    ): Pair<Any, String> {
         val pkg = "com.k2fsa.sherpa.onnx"
 
-        val featCls = Class.forName("$pkg.FeatureConfig")
-        val feat    = featCls.getDeclaredConstructor(Int::class.java, Int::class.java)
+        val featCls  = Class.forName("$pkg.FeatureConfig")
+        val feat     = featCls.getDeclaredConstructor(Int::class.java, Int::class.java)
             .newInstance(16000, 80)
 
-        val svCls   = Class.forName("$pkg.OfflineSenseVoiceModelConfig")
-        val sv      = svCls.getDeclaredConstructor(
+        val svCls    = Class.forName("$pkg.OfflineSenseVoiceModelConfig")
+        val sv       = svCls.getDeclaredConstructor(
             String::class.java, String::class.java, Boolean::class.java
         ).newInstance(modelPath, ModelConfig.ASR_LANGUAGE, ModelConfig.ASR_USE_ITN)
 
-        val omCls   = Class.forName("$pkg.OfflineModelConfig")
-        // OfflineModelConfig has many fields; use the builder or a constructor that accepts SenseVoice
-        val om = buildOfflineModelConfig(omCls, pkg, sv, tokensPath)
-
+        val omCls    = Class.forName("$pkg.OfflineModelConfig")
         val orCfgCls = Class.forName("$pkg.OfflineRecognizerConfig")
-        val orCfg    = orCfgCls.getDeclaredConstructor(featCls, omCls, String::class.java)
-            .newInstance(feat, om, "greedy_search")
+        val recCls   = Class.forName("$pkg.OfflineRecognizer")
 
-        val recognizerCls = Class.forName("$pkg.OfflineRecognizer")
-        return recognizerCls.getDeclaredConstructor(orCfgCls).newInstance(orCfg)
+        var lastError: Exception? = null
+        for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
+            try {
+                val om    = buildOfflineModelConfig(omCls, pkg, sv, tokensPath, provider)
+                val orCfg = orCfgCls.getDeclaredConstructor(featCls, omCls, String::class.java)
+                    .newInstance(feat, om, "greedy_search")
+                val rec   = recCls.getDeclaredConstructor(orCfgCls).newInstance(orCfg)
+                Log.i(TAG, "ASR provider '$provider' OK")
+                return rec to provider
+            } catch (ex: Exception) {
+                Log.w(TAG, "ASR provider '$provider' failed: ${ex.message}")
+                lastError = ex
+            }
+        }
+        throw lastError ?: RuntimeException("No compatible ASR provider found")
     }
 
+    /**
+     * Builds [OfflineModelConfig] for the given ONNX Runtime [provider].
+     * Tries a compact 5-arg constructor first (newer sherpa-onnx builds),
+     * then falls back to the full all-fields constructor (older builds).
+     */
     private fun buildOfflineModelConfig(
-        cls: Class<*>, pkg: String, senseVoice: Any, tokensPath: String
+        cls: Class<*>, pkg: String, senseVoice: Any, tokensPath: String, provider: String
     ): Any {
         val svCls = Class.forName("$pkg.OfflineSenseVoiceModelConfig")
-        // Try data-class / builder pattern first; fall back to all-fields constructor
         return runCatching {
             cls.getDeclaredConstructor(
                 svCls, String::class.java, Int::class.java, String::class.java, Boolean::class.java
             ).newInstance(
                 senseVoice, tokensPath,
-                ModelConfig.SENSE_VOICE_THREADS, "cpu", false
+                ModelConfig.SENSE_VOICE_THREADS, provider, false
             )
         }.getOrElse {
-            // Broader constructor — provide empty strings for unused model types
-            val emptyStr = ""
+            val empty = ""
             cls.constructors.first().newInstance(
-                /* transducer     */ emptyStr, emptyStr, emptyStr,
-                /* paraformer     */ emptyStr,
-                /* nemo ctc       */ emptyStr,
-                /* whisper        */ emptyStr, emptyStr, emptyStr, emptyStr,
-                /* tdnn           */ emptyStr,
-                /* tokens         */ tokensPath,
-                /* numThreads     */ ModelConfig.SENSE_VOICE_THREADS,
-                /* provider       */ "cpu",
-                /* debug          */ false,
-                /* modelType      */ emptyStr,
-                /* senseVoice     */ senseVoice
+                /* transducer */ empty, empty, empty,
+                /* paraformer */ empty,
+                /* nemo ctc   */ empty,
+                /* whisper    */ empty, empty, empty, empty,
+                /* tdnn       */ empty,
+                /* tokens     */ tokensPath,
+                /* numThreads */ ModelConfig.SENSE_VOICE_THREADS,
+                /* provider   */ provider,
+                /* debug      */ false,
+                /* modelType  */ empty,
+                /* senseVoice */ senseVoice
             )
         }
     }
