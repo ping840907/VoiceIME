@@ -58,8 +58,10 @@ dependencies {
     implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 
     // ── MLC LLM (mlc4j) for Qwen3-1.7B ──────────────────────────────────────
-    // Download mlc4j-*.aar from https://github.com/mlc-ai/mlc-llm/releases
-    // and drop it into app/libs/. fileTree matches any mlc4j*.aar present;
-    // if the file is absent the build still succeeds (empty fileTree = no dep).
-    implementation fileTree(dir: 'libs', include: ['mlc4j*.aar'])
+    // Option A (Maven — auto-download, check latest version at https://mlc.ai/package):
+    implementation 'ai.mlc.mlcllm:mlc4j:0.1.0'
+    // Option B (local AAR — if Maven fails or you need a specific build):
+    //   Drop mlc4j-*.aar into app/libs/ and uncomment the line below,
+    //   then comment out the Maven line above.
+    //   implementation fileTree(dir: 'libs', include: ['mlc4j*.aar'])
 }
