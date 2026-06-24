@@ -27,7 +27,7 @@ class AudioRecorder {
 
     companion object {
         private const val TAG = "AudioRecorder"
-        private const val SAMPLE_RATE  = ModelConfig.WHISPER_SAMPLE_RATE
+        private const val SAMPLE_RATE  = ModelConfig.ASR_SAMPLE_RATE
         private const val CHANNEL_CFG  = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
 

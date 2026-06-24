@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        serviceRunning = FloatingBubbleService.isRunning
         refreshPermissionUI()
     }
 
@@ -172,7 +173,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleService() {
         if (serviceRunning) {
-            stopService(Intent(this, FloatingBubbleService::class.java))
+            val intent = Intent(this, FloatingBubbleService::class.java).apply {
+                action = FloatingBubbleService.ACTION_STOP
+            }
+            startService(intent)
             serviceRunning = false
         } else {
             val intent = Intent(this, FloatingBubbleService::class.java).apply {

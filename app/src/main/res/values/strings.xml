@@ -35,4 +35,8 @@
     <string name="desc_battery_opt_detail">防止系統在背景關閉語音助理，確保隨時可用</string>
     <string name="btn_battery_exempt">前往設定</string>
     <string name="status_needs_permission">請授予所有必要權限（共四項）</string>
+
+    <!-- Keyboard text input (bubble expanded panel) -->
+    <string name="hint_type_command">請輸入指令…</string>
+    <string name="btn_send">送出</string>
 </resources>

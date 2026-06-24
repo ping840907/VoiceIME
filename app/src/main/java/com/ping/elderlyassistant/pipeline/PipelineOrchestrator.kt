@@ -21,15 +21,13 @@ import org.json.JSONObject
 /**
  * Central coordinator for the voice-to-action pipeline.
  *
- * ┌──────────────┐   ┌──────────────────┐   ┌───────────────────┐   ┌─────────────────────┐
- * │ AudioRecorder│──>│ SenseVoice ASR   │──>│  Qwen3-1.7B LLM   │──>│ AccessibilityService│
- * │ (16 kHz mono)│   │ (sherpa-onnx AAR)│   │ (mlc4j / OpenCL)  │   │ (click / type / …)  │
- * └──────────────┘   └──────────────────┘   └───────────────────┘   └─────────────────────┘
+ * Two entry points:
+ *   [startListening]  — records audio → SenseVoice ASR → Qwen3 action loop
+ *   [startWithText]   — accepts typed text, skips record/ASR, goes straight to LLM
  *
- * Multi-step loop (Phase 3):
- *   After transcription, the orchestrator enters an action loop:
- *   capture screen → LLM generates JSON → ActionExecutor runs it → repeat until
- *   ActionExecutor.Result.Done, Blocked, Failure, or AutomationGuard.MAX_STEPS is reached.
+ * Multi-step loop (≤ [AutomationGuard.MAX_STEPS], timeout [AutomationGuard.TIMEOUT_MS]):
+ *   capture screen → LLM generates JSON action → ActionExecutor runs it → repeat
+ *   until Result.Done, Blocked, Failure, max-steps, or timeout.
  */
 class PipelineOrchestrator(private val context: Context) {
 
@@ -83,6 +81,7 @@ class PipelineOrchestrator(private val context: Context) {
 
     // ── Pipeline control ──────────────────────────────────────────────────────
 
+    /** Record audio via microphone → transcribe → run LLM action loop. */
     fun startListening() {
         if (_state.value !is State.Idle) {
             Log.w(TAG, "Pipeline busy — ignoring startListening()")
@@ -91,20 +90,34 @@ class PipelineOrchestrator(private val context: Context) {
         pipelineJob = scope.launch { runPipeline() }
     }
 
+    /**
+     * Skip recording/ASR and use [text] as the user instruction directly.
+     * Useful for keyboard input mode.
+     */
+    fun startWithText(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return
+        if (_state.value !is State.Idle) {
+            Log.w(TAG, "Pipeline busy — ignoring startWithText()")
+            return
+        }
+        pipelineJob = scope.launch { runLlmLoop(trimmed) }
+    }
+
     fun stopRecordingEarly() = recorder.stopEarly()
 
-    /** Abort any active pipeline step and return to Idle. */
+    /** Abort any active step and return to Idle. */
     fun cancel() {
         pipelineJob?.cancel()
         recorder.stopEarly()
         _state.value = State.Idle
     }
 
-    // ── Pipeline implementation ───────────────────────────────────────────────
+    // ── Voice pipeline ────────────────────────────────────────────────────────
 
     private suspend fun runPipeline() {
 
-        // ── 1. Record ─────────────────────────────────────────────────────────
+        // 1. Record
         _state.value = State.Recording
         val recording = recorder.recordUntilSilence()
 
@@ -112,7 +125,7 @@ class PipelineOrchestrator(private val context: Context) {
             emitTerminal(State.Error("錄音失敗，請重試")); return
         }
 
-        // ── 2. Transcribe (SenseVoice-Small) ─────────────────────────────────
+        // 2. Transcribe (SenseVoice-Small)
         _state.value = State.Transcribing(recording.durationSeconds)
 
         if (!asr.isLoaded()) {
@@ -124,7 +137,13 @@ class PipelineOrchestrator(private val context: Context) {
         if (transcript.isBlank()) { emitTerminal(State.Error("未偵測到語音，請重說")); return }
         Log.i(TAG, "Transcript: \"$transcript\"")
 
-        // ── 3. LLM + action multi-step loop (Qwen3-1.7B) ─────────────────────
+        // 3. LLM + action loop
+        runLlmLoop(transcript)
+    }
+
+    // ── LLM action loop (shared by voice and text-input paths) ────────────────
+
+    private suspend fun runLlmLoop(transcript: String) {
         if (!llm.isLoaded()) {
             emitTerminal(State.Done(transcript = transcript, actionJson = null, llmStats = null))
             return
@@ -137,7 +156,8 @@ class PipelineOrchestrator(private val context: Context) {
 
         val completed = AutomationGuard.withGuard {
             for (step in 0 until AutomationGuard.MAX_STEPS) {
-                // Re-capture screen on every step so the LLM sees updated state
+                // Re-capture screen every step; panel has FLAG_NOT_FOCUSABLE so this
+                // always returns the foreground app's window, not the bubble's own tree.
                 val svc      = AssistantAccessibilityService.instance
                 val nodeTree = svc?.captureNodeTreeForLlm()?.text ?: ""
                 val prompt   = PromptBuilder.build(transcript, nodeTree, history)
@@ -152,8 +172,8 @@ class PipelineOrchestrator(private val context: Context) {
                 if (json == null) {
                     finalError = "模型輸出格式錯誤，請重試"; break
                 }
-                lastJson         = json
-                _state.value     = State.Executing(json)
+                lastJson     = json
+                _state.value = State.Executing(json)
 
                 when (val result = executor.execute(json)) {
                     is ActionExecutor.Result.Done    -> break
@@ -169,7 +189,6 @@ class PipelineOrchestrator(private val context: Context) {
             }
         }
 
-        // ── 4. Emit final state ───────────────────────────────────────────────
         when {
             completed == null  -> emitTerminal(State.Error("操作逾時，已自動停止"))
             finalError != null -> emitTerminal(State.Error(finalError!!))
@@ -186,10 +205,6 @@ class PipelineOrchestrator(private val context: Context) {
         return runCatching { JSONObject(candidate); candidate }.getOrNull()
     }
 
-    /**
-     * Set terminal state (Done / Error) and schedule an auto-reset to Idle
-     * after 3.5 s so the UI does not stay stuck on a result screen.
-     */
     private fun emitTerminal(s: State) {
         _state.value = s
         scope.launch {
