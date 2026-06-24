@@ -75,10 +75,9 @@ class SenseVoiceEngine(private val context: Context) {
             var lastError: Exception? = null
             for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
                 try {
+                    // Use positional args: sherpa-onnx AAR may not expose Kotlin named-param metadata
                     val svConfig = OfflineSenseVoiceModelConfig(
-                        model    = modelPath,
-                        language = ModelConfig.ASR_LANGUAGE,
-                        useItn   = ModelConfig.ASR_USE_ITN,
+                        modelPath, ModelConfig.ASR_LANGUAGE, ModelConfig.ASR_USE_ITN
                     )
                     val modelConfig = OfflineModelConfig(
                         senseVoice = svConfig,
@@ -132,7 +131,7 @@ class SenseVoiceEngine(private val context: Context) {
         return@withContext try {
             val stream = r.createStream()
             try {
-                stream.acceptSamples(samples)
+                stream.acceptWaveform(ModelConfig.ASR_SAMPLE_RATE, samples)
                 r.decode(stream)
                 val result = r.getResult(stream)
                 val text   = result.text
