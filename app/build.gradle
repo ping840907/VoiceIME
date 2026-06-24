@@ -35,19 +35,6 @@ android {
     }
     kotlinOptions { jvmTarget = '1.8' }
     buildFeatures { viewBinding true }
-
-    // Local AAR directory — drop mlc4j-*.aar and/or sherpa-onnx-*.aar here
-    repositories {
-        flatDir { dirs 'libs' }
-    }
-}
-
-repositories {
-    google()
-    mavenCentral()
-    // sherpa-onnx publishes to Maven Central; no extra repo needed
-    // MLC LLM Maven fallback (if not using local AAR)
-    maven { url "https://mlc.ai/package" }
 }
 
 dependencies {

@@ -13,11 +13,11 @@ import kotlinx.coroutines.withContext
  *      and place it in app/libs/mlc4j-<version>.aar
  *   2. In app/build.gradle, uncomment:
  *        implementation fileTree(dir: 'libs', include: ['*.aar'])
- *   3. Build the Qwen2.5-1.5B model for Android:
+ *   3. Build the Qwen3-1.7B model for Android:
  *        https://llm.mlc.ai/docs/deploy/android.html
- *      Copy the compiled .so into the AAR or app/src/main/jniLibs/arm64-v8a/
+ *      Copy the compiled .so into app/src/main/jniLibs/arm64-v8a/
  *   4. Push model weights to device:
- *        adb push Qwen2.5-1.5B-Instruct-q4f16_1/ \
+ *        adb push Qwen3-1.7B-q4f16_1/ \
  *            /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
  *
  * mlc4j API reference (v0.1.x):
