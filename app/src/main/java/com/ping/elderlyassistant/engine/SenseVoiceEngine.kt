@@ -2,6 +2,11 @@ package com.ping.elderlyassistant.engine
 
 import android.content.Context
 import android.util.Log
+import com.k2fsa.sherpa.onnx.FeatureConfig
+import com.k2fsa.sherpa.onnx.OfflineModelConfig
+import com.k2fsa.sherpa.onnx.OfflineRecognizer
+import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,92 +24,91 @@ import java.io.File
  *   • Single prebuilt AAR — no custom NDK/CMake build required
  *
  * Setup:
- *   1. Add sherpa-onnx AAR to app/build.gradle:
- *        implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android-arm64-v8a:1.10.34'
- *      (check latest version: https://github.com/k2-fsa/sherpa-onnx/releases)
+ *   1. Download sherpa-onnx-<version>.aar from https://github.com/k2-fsa/sherpa-onnx/releases
+ *      (NOT the -rknn or -static-link variants) and drop into app/libs/.
+ *      Update app/build.gradle: implementation(name: 'sherpa-onnx-<version>', ext: 'aar')
  *
  *   2. Push model files to device:
- *        adb push sense_voice/ \
+ *        adb push sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/ \
  *          /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/sense_voice/
- *      Download from:
- *        https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
- *        → sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
- *        Rename model.onnx → model.int8.onnx  (or use the int8 variant directly)
+ *      Rename model.onnx → model.int8.onnx  (or use the int8 variant directly)
+ *      Download: https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
  */
 class SenseVoiceEngine(private val context: Context) {
 
     companion object {
         private const val TAG = "SenseVoiceEngine"
-
-        val isSherpaAvailable: Boolean by lazy {
-            try {
-                Class.forName("com.k2fsa.sherpa.onnx.OfflineRecognizer")
-                Log.i(TAG, "sherpa-onnx found on classpath")
-                true
-            } catch (_: ClassNotFoundException) {
-                Log.w(TAG, "sherpa-onnx not found — ASR will be unavailable. " +
-                        "Add 'com.k2fsa.sherpa.onnx:sherpa-onnx-android-arm64-v8a' to build.gradle")
-                false
-            }
-        }
     }
 
-    // Held as Any to avoid hard compile dependency when AAR is absent
-    @Volatile private var recognizer: Any? = null   // com.k2fsa.sherpa.onnx.OfflineRecognizer
-    @Volatile private var activeProvider = "cpu"    // set after successful load, for logging
+    @Volatile private var recognizer: OfflineRecognizer? = null
     private val loadMutex = Mutex()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     data class LoadResult(val success: Boolean, val error: String? = null)
 
+    /**
+     * Loads the SenseVoice recognizer, trying each provider in
+     * [ModelConfig.ASR_PROVIDER_PRIORITY] (nnapi → cpu) until one succeeds.
+     */
     suspend fun load(): LoadResult = loadMutex.withLock {
         if (isLoaded()) return@withLock LoadResult(success = true)
         withContext(Dispatchers.IO) {
-            if (!isSherpaAvailable) {
-                return@withContext LoadResult(
-                    success = false,
-                    error = "sherpa-onnx AAR missing. See SenseVoiceEngine.kt setup."
-                )
-            }
-
             val modelPath  = ModelConfig.senseVoiceModelPath(context)
             val tokensPath = ModelConfig.senseVoiceTokensPath(context)
 
             if (!File(modelPath).exists()) {
                 return@withContext LoadResult(
                     success = false,
-                    error = "SenseVoice model not found: $modelPath"
+                    error   = "SenseVoice model not found: $modelPath"
                 )
             }
             if (!File(tokensPath).exists()) {
                 return@withContext LoadResult(
                     success = false,
-                    error = "Tokens file not found: $tokensPath"
+                    error   = "Tokens file not found: $tokensPath"
                 )
             }
 
-            release()   // clean up any previous instance
+            release()
 
-            try {
-                val (rec, provider) = buildRecognizerWithFallback(modelPath, tokensPath)
-                recognizer     = rec
-                activeProvider = provider
-                Log.i(TAG, "SenseVoice loaded (provider='$provider'  model=$modelPath)")
-                LoadResult(success = true)
-            } catch (ex: Exception) {
-                Log.e(TAG, "Failed to load SenseVoice on all providers: ${ex.message}", ex)
-                LoadResult(success = false, error = ex.message)
+            var lastError: Exception? = null
+            for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
+                try {
+                    val svConfig = OfflineSenseVoiceModelConfig(
+                        model    = modelPath,
+                        language = ModelConfig.ASR_LANGUAGE,
+                        useItn   = ModelConfig.ASR_USE_ITN,
+                    )
+                    val modelConfig = OfflineModelConfig(
+                        senseVoice = svConfig,
+                        tokens     = tokensPath,
+                        numThreads = ModelConfig.SENSE_VOICE_THREADS,
+                        provider   = provider,
+                    )
+                    val recConfig = OfflineRecognizerConfig(
+                        featConfig  = FeatureConfig(
+                            sampleRate = ModelConfig.ASR_SAMPLE_RATE,
+                            featureDim = 80,
+                        ),
+                        modelConfig = modelConfig,
+                    )
+                    recognizer = OfflineRecognizer(config = recConfig)
+                    Log.i(TAG, "SenseVoice loaded (provider='$provider'  model=$modelPath)")
+                    return@withContext LoadResult(success = true)
+                } catch (ex: Exception) {
+                    Log.w(TAG, "ASR provider '$provider' failed: ${ex.message}")
+                    lastError = ex
+                }
             }
+            LoadResult(success = false, error = lastError?.message ?: "All ASR providers failed")
         }
     }
 
     fun isLoaded(): Boolean = recognizer != null
 
     fun release() {
-        recognizer?.let { r ->
-            runCatching { r.javaClass.getMethod("release").invoke(r) }
-        }
+        recognizer?.release()
         recognizer = null
     }
 
@@ -112,144 +116,35 @@ class SenseVoiceEngine(private val context: Context) {
 
     /**
      * Transcribe float32 PCM samples (16 kHz, mono, normalised to [-1, 1]).
-     * Returns the recognised text. Emotion tag is logged but not returned.
+     * Returns the recognised text.
      */
     suspend fun transcribe(
         samples: FloatArray,
-        language: String = ModelConfig.ASR_LANGUAGE
+        language: String = ModelConfig.ASR_LANGUAGE,  // language is set at model load time; param kept for API compatibility
     ): String = withContext(Dispatchers.IO) {
-        val r = recognizer
-        if (r == null) {
+        val r = recognizer ?: run {
             Log.e(TAG, "transcribe() called before load()")
             return@withContext ""
         }
         if (samples.isEmpty()) return@withContext ""
 
         val t0 = System.currentTimeMillis()
-
         return@withContext try {
-            // Direct API (when sherpa-onnx AAR is on the classpath):
-            //
-            //   val stream = r.createStream()
-            //   stream.acceptSamples(samples)
-            //   r.decode(stream)
-            //   val result = r.getResult(stream)
-            //   stream.release()
-            //   Log.i(TAG, "Emotion: ${result.emotion}  Lang: ${result.lang}")
-            //   result.text
-            //
-            // Reflection-based fallback (AAR optional during dev):
-
-            val streamObj  = r.javaClass.getMethod("createStream").invoke(r)!!
-            val streamCls  = streamObj.javaClass
-
-            // Use try-finally so the native stream is always released, even on exception.
-            var text = ""
+            val stream = r.createStream()
             try {
-                streamCls.getMethod("acceptSamples", FloatArray::class.java)
-                    .invoke(streamObj, samples)
-                r.javaClass.getMethod("decode", streamCls).invoke(r, streamObj)
-                val resultObj = r.javaClass.getMethod("getResult", streamCls)
-                    .invoke(r, streamObj)!!
-                text = resultObj.javaClass.getMethod("getText").invoke(resultObj)
-                    as? String ?: ""
-                runCatching {
-                    val emotion = resultObj.javaClass.getMethod("getEmotion").invoke(resultObj)
-                    val lang    = resultObj.javaClass.getMethod("getLang").invoke(resultObj)
-                    Log.d(TAG, "emotion=$emotion  lang=$lang")
-                }
+                stream.acceptSamples(samples)
+                r.decode(stream)
+                val result = r.getResult(stream)
+                val text   = result.text
+                val ms = System.currentTimeMillis() - t0
+                Log.i(TAG, "SenseVoice transcribed ${samples.size / 16000f}s in ${ms}ms: \"$text\"")
+                text
             } finally {
-                runCatching { streamCls.getMethod("release").invoke(streamObj) }
+                runCatching { stream.release() }
             }
-
-            val ms = System.currentTimeMillis() - t0
-            Log.i(TAG, "SenseVoice transcribed ${samples.size / 16000f}s audio in ${ms}ms: \"$text\"")
-            text
         } catch (ex: Exception) {
             Log.e(TAG, "transcribe() error: ${ex.message}", ex)
             ""
-        }
-    }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    /**
-     * Tries each ONNX Runtime provider from [ModelConfig.ASR_PROVIDER_PRIORITY] in order.
-     * Returns the first (recognizer, providerName) pair that constructs without error.
-     * Throws if all providers fail.
-     *
-     * Provider priority:
-     *   "nnapi" — Android NNAPI; delegates compatible ops to NPU/DSP/GPU.
-     *             ONNX Runtime falls back per-op to CPU for unsupported ops, so
-     *             construction should succeed on any Android 8.1+ device.
-     *   "cpu"   — pure-software fallback; always works.
-     */
-    private fun buildRecognizerWithFallback(
-        modelPath: String, tokensPath: String
-    ): Pair<Any, String> {
-        val pkg = "com.k2fsa.sherpa.onnx"
-
-        val featCls  = Class.forName("$pkg.FeatureConfig")
-        val feat     = featCls.getDeclaredConstructor(Int::class.java, Int::class.java)
-            .newInstance(16000, 80)
-
-        val svCls    = Class.forName("$pkg.OfflineSenseVoiceModelConfig")
-        val sv       = svCls.getDeclaredConstructor(
-            String::class.java, String::class.java, Boolean::class.java
-        ).newInstance(modelPath, ModelConfig.ASR_LANGUAGE, ModelConfig.ASR_USE_ITN)
-
-        val omCls    = Class.forName("$pkg.OfflineModelConfig")
-        val orCfgCls = Class.forName("$pkg.OfflineRecognizerConfig")
-        val recCls   = Class.forName("$pkg.OfflineRecognizer")
-
-        var lastError: Exception? = null
-        for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
-            try {
-                val om    = buildOfflineModelConfig(omCls, pkg, sv, tokensPath, provider)
-                val orCfg = orCfgCls.getDeclaredConstructor(featCls, omCls, String::class.java)
-                    .newInstance(feat, om, "greedy_search")
-                val rec   = recCls.getDeclaredConstructor(orCfgCls).newInstance(orCfg)
-                Log.i(TAG, "ASR provider '$provider' OK")
-                return rec to provider
-            } catch (ex: Exception) {
-                Log.w(TAG, "ASR provider '$provider' failed: ${ex.message}")
-                lastError = ex
-            }
-        }
-        throw lastError ?: RuntimeException("No compatible ASR provider found")
-    }
-
-    /**
-     * Builds [OfflineModelConfig] for the given ONNX Runtime [provider].
-     * Tries a compact 5-arg constructor first (newer sherpa-onnx builds),
-     * then falls back to the full all-fields constructor (older builds).
-     */
-    private fun buildOfflineModelConfig(
-        cls: Class<*>, pkg: String, senseVoice: Any, tokensPath: String, provider: String
-    ): Any {
-        val svCls = Class.forName("$pkg.OfflineSenseVoiceModelConfig")
-        return runCatching {
-            cls.getDeclaredConstructor(
-                svCls, String::class.java, Int::class.java, String::class.java, Boolean::class.java
-            ).newInstance(
-                senseVoice, tokensPath,
-                ModelConfig.SENSE_VOICE_THREADS, provider, false
-            )
-        }.getOrElse {
-            val empty = ""
-            cls.constructors.first().newInstance(
-                /* transducer */ empty, empty, empty,
-                /* paraformer */ empty,
-                /* nemo ctc   */ empty,
-                /* whisper    */ empty, empty, empty, empty,
-                /* tdnn       */ empty,
-                /* tokens     */ tokensPath,
-                /* numThreads */ ModelConfig.SENSE_VOICE_THREADS,
-                /* provider   */ provider,
-                /* debug      */ false,
-                /* modelType  */ empty,
-                /* senseVoice */ senseVoice
-            )
         }
     }
 }
