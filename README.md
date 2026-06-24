@@ -128,7 +128,7 @@ adb push Qwen3-1.7B-q4f16_1/ \
 **sherpa-onnx**（Maven Central，自動下載）：
 ```groovy
 // app/build.gradle — 已預設啟用
-implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android:1.10.34'
+implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android:1.13.3'
 ```
 
 **mlc4j**（選擇其一）：
