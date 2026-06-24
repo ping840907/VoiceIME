@@ -125,10 +125,17 @@ adb push Qwen3-1.7B-q4f16_1/ \
 
 ### 1. 加入 SDK 依賴
 
-**sherpa-onnx**（Maven Central，自動下載）：
+**sherpa-onnx**（需手動下載 AAR）：
+
+sherpa-onnx **不發佈到 Maven Central**，需從 GitHub Releases 下載 AAR：
+
+1. 前往 https://github.com/k2-fsa/sherpa-onnx/releases
+2. 下載 `sherpa-onnx-<版本>.aar`（選一般版，勿選 `-rknn` 或 `-static-link` 變體）
+3. 放入 `app/libs/`
+
 ```groovy
-// app/build.gradle — 已預設啟用
-implementation 'com.k2fsa.sherpa.onnx:sherpa-onnx-android:1.13.3'
+// app/build.gradle — 版本號需與下載的 AAR 檔名一致
+implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 ```
 
 **mlc4j**（選擇其一）：
