@@ -25,7 +25,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="請完成以下三項授權以啟動語音助理"
+            android:text="請完成以下四項授權以啟動語音助理"
             android:textSize="16sp"
             android:textColor="#666666"
             android:layout_marginBottom="24dp" />

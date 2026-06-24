@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">語音助理</string>
-    <string name="accessibility_service_label">長輩語音助理</string>
+    <string name="accessibility_service_label">語音助理</string>
     <string name="accessibility_service_description">允許語音助理讀取畫面內容，以便執行您的語音指令（例如：撥打電話、發送訊息）。本服務不會收集或上傳任何個人資料。</string>
 
     <!-- MainActivity -->

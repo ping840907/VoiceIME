@@ -53,8 +53,8 @@ class MlcLlmEngine(private val context: Context) : LlmEngine {
     //   import ai.mlc.mlcllm.MLCEngine
     //   private var engine: MLCEngine? = null
 
-    private var engineInstance: Any? = null   // ai.mlc.mlcllm.MLCEngine
-    private var _loaded = false
+    @Volatile private var engineInstance: Any? = null   // ai.mlc.mlcllm.MLCEngine
+    @Volatile private var _loaded = false
     private var _stats = LlmEngine.InferenceStats()
 
     // ── LlmEngine ─────────────────────────────────────────────────────────────

@@ -406,7 +406,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val ch = NotificationChannel(
                 NOTIF_CHANNEL_ID, "語音助理服務", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "長輩語音助理背景常駐服務"; setShowBadge(false) }
+            ).apply { description = "語音助理背景常駐服務"; setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
         }
     }

@@ -17,6 +17,27 @@ package com.ping.elderlyassistant.pipeline
  */
 object PromptBuilder {
 
+    // ── Common app package names ──────────────────────────────────────────────
+    // Declared first so APP_PACKAGES_HINT can reference it during object init.
+    val COMMON_APP_PACKAGES = mapOf(
+        "LINE"       to "jp.naver.line.android",
+        "line"       to "jp.naver.line.android",
+        "微信"       to "com.tencent.mm",
+        "YouTube"    to "com.google.android.youtube",
+        "youtube"    to "com.google.android.youtube",
+        "Chrome"     to "com.android.chrome",
+        "Google"     to "com.google.android.googlequicksearchbox",
+        "相機"       to "com.android.camera2",
+        "地圖"       to "com.google.android.apps.maps",
+        "設定"       to "com.android.settings",
+        "電話"       to "com.android.dialer",
+        "通話"       to "com.android.dialer",
+        "聯絡人"     to "com.android.contacts",
+        "訊息"       to "com.google.android.apps.messaging",
+        "FB"         to "com.facebook.katana",
+        "Facebook"   to "com.facebook.katana",
+    )
+
     // ── Supported action JSON schemas ─────────────────────────────────────────
     private val ACTION_SCHEMA = """
         ## 支援的 JSON 動作（只能輸出其中一個）
@@ -98,7 +119,7 @@ object PromptBuilder {
     // ── System prompt (Qwen3 ChatML with /no_think) ───────────────────────────
     private val SYSTEM_PROMPT = buildString {
         appendLine("/no_think")
-        appendLine("你是一位專為長輩設計的 Android 手機操作助理。")
+        appendLine("你是一位 Android 手機操作助理。")
         appendLine("根據「使用者指令」和「畫面節點」，輸出一個 JSON 動作。")
         appendLine("規則：只輸出 JSON，不加任何說明、不用 markdown 包裝。")
         appendLine()
@@ -149,23 +170,4 @@ object PromptBuilder {
         append("<|im_start|>assistant\n")
     }
 
-    /** Common app package names for the `open_app` action. */
-    val COMMON_APP_PACKAGES = mapOf(
-        "LINE"       to "jp.naver.line.android",
-        "line"       to "jp.naver.line.android",
-        "微信"       to "com.tencent.mm",
-        "YouTube"    to "com.google.android.youtube",
-        "youtube"    to "com.google.android.youtube",
-        "Chrome"     to "com.android.chrome",
-        "Google"     to "com.google.android.googlequicksearchbox",
-        "相機"       to "com.android.camera2",
-        "地圖"       to "com.google.android.apps.maps",
-        "設定"       to "com.android.settings",
-        "電話"       to "com.android.dialer",
-        "通話"       to "com.android.dialer",
-        "聯絡人"     to "com.android.contacts",
-        "訊息"       to "com.google.android.apps.messaging",
-        "FB"         to "com.facebook.katana",
-        "Facebook"   to "com.facebook.katana",
-    )
 }

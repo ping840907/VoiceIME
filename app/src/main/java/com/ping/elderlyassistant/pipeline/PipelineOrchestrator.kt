@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -172,7 +173,11 @@ class PipelineOrchestrator(private val context: Context) {
                 if (json == null) {
                     finalError = "模型輸出格式錯誤，請重試"; break
                 }
-                lastJson     = json
+                lastJson = json
+                // ensureActive: if cancel() was called while the LLM was generating, throw
+                // CancellationException here rather than overwriting the Idle state that
+                // cancel() already set.
+                ensureActive()
                 _state.value = State.Executing(json)
 
                 when (val result = executor.execute(json)) {

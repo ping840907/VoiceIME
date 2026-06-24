@@ -48,7 +48,7 @@ class SenseVoiceEngine(private val context: Context) {
     }
 
     // Held as Any to avoid hard compile dependency when AAR is absent
-    private var recognizer: Any? = null   // com.k2fsa.sherpa.onnx.OfflineRecognizer
+    @Volatile private var recognizer: Any? = null   // com.k2fsa.sherpa.onnx.OfflineRecognizer
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
