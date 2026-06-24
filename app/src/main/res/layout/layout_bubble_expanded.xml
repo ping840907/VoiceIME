@@ -106,7 +106,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="@string/hint_type_command"
-            android:hintTextColor="#80FFFFFF"
+            android:textColorHint="#80FFFFFF"
             android:textColor="@android:color/white"
             android:textSize="16sp"
             android:inputType="text"
