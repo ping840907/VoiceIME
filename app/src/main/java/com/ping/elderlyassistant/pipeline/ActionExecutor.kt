@@ -56,7 +56,8 @@ class ActionExecutor(private val context: Context) {
             return Result.Failure("JSON 解析失敗：${it.message}")
         }
 
-        return when (val action = json.optString("action")) {
+        val action = json.optString("action")
+        return when (action) {
             "click"    -> executeClick(svc, json)
             "type"     -> executeType(svc, json)
             "scroll"   -> executeScroll(svc, json.optString("direction", "down"))

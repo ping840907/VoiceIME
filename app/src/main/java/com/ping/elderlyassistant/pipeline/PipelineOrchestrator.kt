@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -130,7 +131,7 @@ class PipelineOrchestrator(private val context: Context) {
 
         // If cancel() was called during recording, stop here rather than overwriting the
         // Idle state that cancel() already set with a new Transcribing state.
-        ensureActive()
+        currentCoroutineContext().ensureActive()
 
         // 2. Transcribe (SenseVoice-Small)
         _state.value = State.Transcribing(recording.durationSeconds)
@@ -183,7 +184,7 @@ class PipelineOrchestrator(private val context: Context) {
                 // ensureActive: if cancel() was called while the LLM was generating, throw
                 // CancellationException here rather than overwriting the Idle state that
                 // cancel() already set.
-                ensureActive()
+                currentCoroutineContext().ensureActive()
                 _state.value = State.Executing(json)
 
                 when (val result = executor.execute(json)) {
