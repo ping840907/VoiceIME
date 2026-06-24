@@ -131,7 +131,7 @@ class SenseVoiceEngine(private val context: Context) {
         return@withContext try {
             val stream = r.createStream()
             try {
-                stream.acceptWaveform(ModelConfig.ASR_SAMPLE_RATE, samples)
+                stream.acceptWaveform(samples, ModelConfig.ASR_SAMPLE_RATE)
                 r.decode(stream)
                 val result = r.getResult(stream)
                 val text   = result.text
