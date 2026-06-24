@@ -43,10 +43,12 @@ object ModelConfig {
 
     /**
      * Primary language for ASR.
-     * sherpa-onnx / SenseVoice language codes: "zh", "yue", "en", "auto"
-     * "zh" covers Standard Mandarin and handles accented speech well.
+     * "auto" enables SenseVoice's built-in language detection, which handles
+     * code-switching between Taiwan Mandarin (台灣國語) and Taiwanese Hokkien (台語).
+     * SenseVoice does not have a dedicated "tai" code; "auto" is the best choice
+     * for mixed Mandarin/Taiwanese speech. Use "zh" for pure Mandarin only.
      */
-    const val ASR_LANGUAGE   = "zh"
+    const val ASR_LANGUAGE   = "auto"
     const val ASR_USE_ITN    = true   // inverse text normalisation (三點五 → 3.5)
 
     /** Sample rate Whisper / SenseVoice both expect: 16 kHz mono PCM. */
