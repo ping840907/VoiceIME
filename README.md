@@ -134,12 +134,8 @@ adb push qwen3_asr/ \
 
 ### 3. Gemma 4 E2B INT4（LLM，~1.3 GB）
 
-**下載**：[Google AI Edge — LiteRT LM Models](https://ai.google.dev/edge/litert/models/gemma)
+**下載**：[Hugging Face — google/gemma-4-e2b-it-lm-int4](https://huggingface.co/google/gemma-4-e2b-it-lm-int4)
 
-或從 Hugging Face 搜尋：
-```
-google/gemma-4-e2b-it-lm-int4
-```
 下載 `.task` 格式的量化模型檔案。
 
 **需要的檔案**：
@@ -322,6 +318,6 @@ app/src/main/java/com/ping/elderlyassistant/
 
 - SenseVoice-Small：[Apache 2.0](https://github.com/FunAudioLLM/SenseVoice)
 - Qwen3-ASR：[Apache 2.0](https://github.com/QwenLM/Qwen3-ASR)
-- Gemma 4：[Gemma Terms of Use](https://ai.google.dev/gemma/terms)
+- Gemma 4：[Apache 2.0](https://ai.google.dev/gemma/apache_2)
 - sherpa-onnx：[Apache 2.0](https://github.com/k2-fsa/sherpa-onnx)
 - LiteRT LM：[Apache 2.0](https://github.com/google-ai-edge/LiteRT)
