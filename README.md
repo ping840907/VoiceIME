@@ -94,7 +94,7 @@ sense_voice/
 **推送至裝置**：
 ```bash
 adb push sense_voice/ \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/sense_voice/
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
 ```
 
 ---
@@ -125,7 +125,7 @@ qwen3_asr/
 **推送至裝置**：
 ```bash
 adb push qwen3_asr/ \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/qwen3_asr/
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
 ```
 
 > 在 App 主頁「語音辨識引擎」卡片選擇 **Qwen3-ASR-0.6B** 後重新啟動服務即可生效。
@@ -151,7 +151,7 @@ adb push qwen3_asr/ \
 ```bash
 # 通用版（GPU / CPU，建議）
 adb push gemma-4-E2B-it.litertlm \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it.litertlm
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
 
 # Snapdragon 8 Elite NPU 版（SM8750 裝置）
 adb push gemma-4-E2B-it_qualcomm_sm8750.litertlm \
