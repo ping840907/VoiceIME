@@ -46,11 +46,11 @@ object ModelConfig {
 
     /**
      * Primary language for ASR.
-     * "zh" targets Taiwan Mandarin (台灣國語) and yields lower CER on pure Mandarin.
-     * Switch to "auto" to enable SenseVoice's built-in language detection for
-     * mixed Mandarin/Taiwanese Hokkien (台語) speech; SenseVoice has no "tai" code.
+     * "auto" enables SenseVoice's built-in language detection for code-switching
+     * between Taiwan Mandarin (台灣國語) and Taiwanese Hokkien (台語).
+     * Switch to "zh" for pure Mandarin to lower CER; SenseVoice has no "tai" code.
      */
-    const val ASR_LANGUAGE   = "zh"
+    const val ASR_LANGUAGE   = "auto"
     const val ASR_USE_ITN    = true   // inverse text normalisation (三點五 → 3.5)
 
     /** Sample rate Whisper / SenseVoice both expect: 16 kHz mono PCM. */

@@ -91,11 +91,11 @@ object PromptBuilder {
         appendLine("### 範例 4：需要往下捲動才能看到目標")
         appendLine("指令：找王小明的電話")
         appendLine("畫面節點：")
-        appendLine("[0] EditText(editable,focusable) \"搜尋聯絡人\" id=com.android.contacts:id/search_bar")
-        appendLine("[1] TextView \"陳大明\" id=com.android.contacts:id/cliv_name")
-        appendLine("[2] TextView \"林小花\" id=com.android.contacts:id/cliv_name")
-        appendLine("（聯絡人清單可以捲動，王小明未出現在畫面中）")
-        appendLine("輸出：{\"action\":\"type\",\"id\":\"com.android.contacts:id/search_bar\",\"text\":\"王小明\"}")
+        appendLine("[0] TextView \"陳大明\" id=com.android.contacts:id/cliv_name")
+        appendLine("[1] TextView \"林小花\" id=com.android.contacts:id/cliv_name")
+        appendLine("[2] TextView \"黃志明\" id=com.android.contacts:id/cliv_name")
+        appendLine("（聯絡人清單可捲動，王小明尚未出現，畫面上無搜尋欄）")
+        appendLine("輸出：{\"action\":\"scroll\",\"direction\":\"down\"}")
         appendLine()
 
         // Example 5: 任務已完成 / 無法執行
@@ -121,8 +121,23 @@ object PromptBuilder {
     val SYSTEM_INSTRUCTION = buildString {
         appendLine("你是一位 Android 手機操作助理，服務台灣用戶。")
         appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解並執行任務。")
-        appendLine("根據「使用者指令」和「畫面節點」，輸出一個 JSON 動作。")
-        appendLine("規則：只輸出 JSON，不加任何說明、不用 markdown 包裝。")
+        appendLine("根據「使用者指令」和「畫面節點」，決定下一個動作並輸出對應 JSON。")
+        appendLine()
+        appendLine("## 輸出格式（最高優先規則，不得違反）")
+        appendLine("1. 整個回應只有一個 JSON 物件，不含任何其他文字。")
+        appendLine("2. 不可使用 Markdown 包裝（禁止 ```json、```、--- 等符號）。")
+        appendLine("3. 不可在 JSON 前後加說明、標題、序號或任何前綴。")
+        appendLine("4. 不可輸出多個 JSON 或陣列。")
+        appendLine()
+        appendLine("【錯誤示範 — 絕對不能這樣輸出】")
+        appendLine("  ✗ ```json")
+        appendLine("    {\"action\":\"click\",\"id\":\"btn\"}")
+        appendLine("    ```")
+        appendLine("  ✗ 根據畫面，我將執行：{\"action\":\"click\",\"id\":\"btn\"}")
+        appendLine("  ✗ 動作：{\"action\":\"click\",\"id\":\"btn\"}")
+        appendLine()
+        appendLine("【正確示範 — 唯一合法的輸出格式】")
+        appendLine("  ✓ {\"action\":\"click\",\"id\":\"btn\"}")
         appendLine()
         appendLine(ACTION_SCHEMA)
         appendLine()
@@ -157,10 +172,12 @@ object PromptBuilder {
 
         append("## 使用者指令\n$instruction\n\n")
         if (nodeTree.isNotBlank()) {
-            append("## 當前畫面節點\n$nodeTree")
+            append("## 當前畫面節點\n$nodeTree\n\n")
         } else {
-            append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)")
+            append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)\n\n")
         }
+        // Completion primer: model continues directly with the JSON object.
+        append("JSON：")
     }
 
 }
