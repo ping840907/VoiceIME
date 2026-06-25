@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <solid android:color="@color/bubble_bg" />
-    <stroke android:width="2dp" android:color="#40FFFFFF" />
+    <!-- Radial gradient: bright centre (淡色) fading to deep blue at the rim -->
+    <gradient
+        android:type="radial"
+        android:gradientRadius="32dp"
+        android:startColor="#E8F4FF"
+        android:centerColor="#991565C0"
+        android:endColor="#FF0D47A1" />
+    <stroke android:width="1.5dp" android:color="#55FFFFFF" />
 </shape>

@@ -1,5 +1,6 @@
 package com.ping.elderlyassistant
 
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.*
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -54,6 +56,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         private const val NOTIF_ID         = 1001
         private const val DRAG_THRESHOLD   = 10
         private const val TRIPLE_TAP_MS    = 2000L
+        private const val SNAP_DURATION_MS = 200L
 
         const val ACTION_START = "com.ping.elderlyassistant.START_BUBBLE"
         const val ACTION_STOP  = "com.ping.elderlyassistant.STOP_BUBBLE"
@@ -74,6 +77,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private var tapCount = 0
     private val resetTap = Runnable { tapCount = 0 }
+    private var snapAnimator: ValueAnimator? = null
 
     private var expandedView: View? = null
     private var expandedParams: WindowManager.LayoutParams? = null
@@ -191,7 +195,9 @@ class FloatingBubbleService : Service(), LifecycleOwner {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0; y = 400
+            // Start on the right edge, 1/3 down the screen
+            x = screenWidth() - bubbleSizePx()
+            y = screenHeight() / 3
         }
 
         bubbleView = LayoutInflater.from(this).inflate(R.layout.layout_bubble_collapsed, null)
@@ -214,6 +220,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         bubbleView?.setOnTouchListener { _, e ->
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    snapAnimator?.cancel()
                     startX = bubbleParams.x; startY = bubbleParams.y
                     rawX = e.rawX; rawY = e.rawY; dragged = false; true
                 }
@@ -222,15 +229,77 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                     if (!dragged && (abs(dx) > DRAG_THRESHOLD || abs(dy) > DRAG_THRESHOLD))
                         dragged = true
                     if (dragged) {
-                        bubbleParams.x = startX + dx; bubbleParams.y = startY + dy
+                        val size = bubbleSizePx()
+                        // Clamp within screen so the bubble never leaves the display
+                        bubbleParams.x = (startX + dx).coerceIn(0, screenWidth() - size)
+                        bubbleParams.y = (startY + dy).coerceIn(minBubbleY(), screenHeight() - size)
                         windowManager.updateViewLayout(bubbleView, bubbleParams)
                     }
                     true
                 }
-                MotionEvent.ACTION_UP -> { if (!dragged) handleTap(); true }
+                MotionEvent.ACTION_UP -> {
+                    if (dragged) snapToNearestEdge() else handleTap()
+                    true
+                }
                 else -> false
             }
         }
+    }
+
+    /**
+     * Animate the bubble to the nearest screen edge (left / right / top / bottom).
+     * The Y position is preserved when snapping left/right; X is preserved for top/bottom.
+     */
+    private fun snapToNearestEdge() {
+        val size  = bubbleSizePx()
+        val maxX  = screenWidth()  - size
+        val maxY  = screenHeight() - size
+        val minY  = minBubbleY()
+        val cx    = bubbleParams.x + size / 2
+        val cy    = bubbleParams.y + size / 2
+
+        val distLeft   = cx
+        val distRight  = screenWidth()  - cx
+        val distTop    = cy - minY
+        val distBottom = screenHeight() - cy
+
+        val minDist = minOf(distLeft, distRight, distTop, distBottom)
+        val targetX: Int
+        val targetY: Int
+        when (minDist) {
+            distLeft   -> { targetX = 0;    targetY = bubbleParams.y.coerceIn(minY, maxY) }
+            distRight  -> { targetX = maxX; targetY = bubbleParams.y.coerceIn(minY, maxY) }
+            distTop    -> { targetX = bubbleParams.x.coerceIn(0, maxX); targetY = minY  }
+            else       -> { targetX = bubbleParams.x.coerceIn(0, maxX); targetY = maxY  }
+        }
+
+        val fromX = bubbleParams.x
+        val fromY = bubbleParams.y
+        snapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = SNAP_DURATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { anim ->
+                val t = anim.animatedValue as Float
+                bubbleParams.x = (fromX + (targetX - fromX) * t).toInt()
+                bubbleParams.y = (fromY + (targetY - fromY) * t).toInt()
+                runCatching { windowManager.updateViewLayout(bubbleView, bubbleParams) }
+            }
+            start()
+        }
+    }
+
+    // ── Screen / bubble dimension helpers ────────────────────────────────────
+
+    private fun screenWidth()  = resources.displayMetrics.widthPixels
+    private fun screenHeight() = resources.displayMetrics.heightPixels
+
+    /** Size of the collapsed bubble in pixels (matches layout_bubble_collapsed 64 dp). */
+    private fun bubbleSizePx() = (64 * resources.displayMetrics.density + 0.5f).toInt()
+
+    /** Minimum Y so the bubble is not fully hidden behind the status bar. */
+    private fun minBubbleY(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
     }
 
     private fun handleTap() {
@@ -253,7 +322,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
     private fun showPanel() {
         if (isExpanded) return
         isExpanded = true
-        bubbleView?.findViewById<TextView>(R.id.tv_bubble_icon)
+        bubbleView?.findViewById<View>(R.id.tv_bubble_icon)
             ?.setBackgroundResource(R.drawable.bubble_background_active)
 
         // FLAG_NOT_FOCUSABLE: panel never steals keyboard focus from the foreground app,
@@ -307,7 +376,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         if (!isExpanded) return
         isExpanded = false
         collapseTextInput()
-        bubbleView?.findViewById<TextView>(R.id.tv_bubble_icon)
+        bubbleView?.findViewById<View>(R.id.tv_bubble_icon)
             ?.setBackgroundResource(R.drawable.bubble_background)
         expandedView?.let { if (it.isAttachedToWindow) windowManager.removeView(it) }
         expandedView = null
