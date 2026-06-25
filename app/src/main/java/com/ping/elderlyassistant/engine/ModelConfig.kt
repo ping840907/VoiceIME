@@ -21,7 +21,7 @@ import android.content.Context
  *   • Efficient 2B model — strong reasoning / instruction-following at low latency
  *   • INT4 quantised .task bundle (~1.3 GB); runs on GPU (OpenCL) or NPU (QNN)
  *   • Delivered as a single .task file via LiteRT LM (litert-lm-android AAR)
- *   • No custom compile step; model download from Hugging Face or AI Edge Gallery
+ *   • Model: https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
  *
  * ── Model file placement ───────────────────────────────────────────────────
  *   /sdcard/Android/data/com.ping.elderlyassistant[.debug]/files/models/
@@ -33,7 +33,7 @@ import android.content.Context
  *           encoder.int8.onnx
  *           decoder.int8.onnx
  *           tokenizer/
- *       gemma4-e2b-it-int4.task
+ *       gemma-4-E2B-it-litert-lm.task
  *
  * No READ_EXTERNAL_STORAGE permission needed (app-specific external storage).
  */
@@ -83,8 +83,10 @@ object ModelConfig {
     const val QWEN3_ASR_THREADS         = 4
 
     // ── Gemma 4 E2B via LiteRT LM ────────────────────────────────────────────
-    /** Single .task file containing weights + tokenizer for Gemma 4 E2B INT4. */
-    const val GEMMA_MODEL_FILE = "gemma4-e2b-it-int4.task"
+    /** Single .task file containing weights + tokenizer for Gemma 4 E2B INT4.
+     *  Source: https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
+     */
+    const val GEMMA_MODEL_FILE = "gemma-4-E2B-it-litert-lm.task"
 
     /** Max new tokens per generation — 256 is ample for a JSON action object. */
     const val LLM_MAX_NEW_TOKENS = 256

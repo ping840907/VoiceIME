@@ -134,20 +134,20 @@ adb push qwen3_asr/ \
 
 ### 3. Gemma 4 E2B INT4（LLM，~1.3 GB）
 
-**下載**：[Hugging Face — google/gemma-4-e2b-it-lm-int4](https://huggingface.co/google/gemma-4-e2b-it-lm-int4)
+**下載**：[Hugging Face — litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)
 
 下載 `.task` 格式的量化模型檔案。
 
 **需要的檔案**：
 ```
 models/
-└── gemma4-e2b-it-int4.task   ← 單一 .task 檔（約 1.3 GB）
+└── gemma-4-E2B-it-litert-lm.task   ← 單一 .task 檔（約 1.3 GB）
 ```
 
 **推送至裝置**：
 ```bash
-adb push gemma4-e2b-it-int4.task \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma4-e2b-it-int4.task
+adb push gemma-4-E2B-it-litert-lm.task \
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it-litert-lm.task
 ```
 
 ---
@@ -164,7 +164,7 @@ adb push gemma4-e2b-it-int4.task \
 │   ├── encoder.int8.onnx
 │   ├── decoder.int8.onnx
 │   └── tokenizer/
-└── gemma4-e2b-it-int4.task
+└── gemma-4-E2B-it-litert-lm.task
 ```
 
 ---
