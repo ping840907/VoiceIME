@@ -127,7 +127,7 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                     Contents.of(mutableListOf(Content.Text(prompt))),
                     object : MessageCallback {
                         override fun onMessage(message: Message) {
-                            val partial = message.text
+                            val partial = message.toString()
                             sb.append(partial)
                             onToken(partial)
                         }
