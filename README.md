@@ -57,7 +57,7 @@ Android 上的離線語音操控助理。說一句話，助理就能替你點按
 
 - Android 8.0（API 26）以上
 - 建議：Snapdragon 或 MediaTek 旗艦機，RAM ≥ 6 GB
-- 儲存空間：SenseVoice ~234 MB、Qwen3-ASR ~600 MB、Gemma 4 E2B ~1.3 GB
+- 儲存空間：SenseVoice ~234 MB、Qwen3-ASR ~600 MB、Gemma 4 E2B ~2.6–3.0 GB（依版本）
 - 開發環境：Android Studio Hedgehog 以上、JDK 17
 
 ---
@@ -132,22 +132,30 @@ adb push qwen3_asr/ \
 
 ---
 
-### 3. Gemma 4 E2B INT4（LLM，~1.3 GB）
+### 3. Gemma 4 E2B（LLM，~2.6–3.0 GB）
 
 **下載**：[Hugging Face — litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)
 
-下載 `.task` 格式的量化模型檔案。
+依裝置選擇下載對應版本（`.litertlm` 格式）：
 
-**需要的檔案**：
-```
-models/
-└── gemma-4-E2B-it-litert-lm.task   ← 單一 .task 檔（約 1.3 GB）
-```
+| 檔案 | 大小 | 適用裝置 |
+|------|------|----------|
+| `gemma-4-E2B-it.litertlm` | 2.59 GB | 任意 Android 裝置（GPU / CPU，**推薦**） |
+| `gemma-4-E2B-it_qualcomm_sm8750.litertlm` | 3.02 GB | Snapdragon 8 Elite（SM8750）NPU 加速 |
+| `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | 3.29 GB | Qualcomm QCS8275 NPU 加速 |
 
-**推送至裝置**：
+> 不確定 SoC 型號的使用者，下載 `gemma-4-E2B-it.litertlm` 即可。App 會依序嘗試 NPU → GPU → CPU 後端，自動使用最佳選項。
+
+**推送至裝置**（兩個版本均推送為相同的目標檔名）：
+
 ```bash
-adb push gemma-4-E2B-it-litert-lm.task \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it-litert-lm.task
+# 通用版（GPU / CPU，建議）
+adb push gemma-4-E2B-it.litertlm \
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it.litertlm
+
+# Snapdragon 8 Elite NPU 版（SM8750 裝置）
+adb push gemma-4-E2B-it_qualcomm_sm8750.litertlm \
+  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it.litertlm
 ```
 
 ---

@@ -86,7 +86,7 @@ object ModelConfig {
     /** Single .task file containing weights + tokenizer for Gemma 4 E2B INT4.
      *  Source: https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
      */
-    const val GEMMA_MODEL_FILE = "gemma-4-E2B-it-litert-lm.task"
+    const val GEMMA_MODEL_FILE = "gemma-4-E2B-it.litertlm"
 
     /** Max new tokens per generation — 256 is ample for a JSON action object. */
     const val LLM_MAX_NEW_TOKENS = 256
