@@ -138,6 +138,11 @@ class FloatingBubbleService : Service(), LifecycleOwner {
         lifecycleScope.launch {
             pipeline.state.collectLatest { state ->
                 when (state) {
+                    is PipelineOrchestrator.State.ModelLoading -> {
+                        blockingOverlay.hide()
+                        updatePanel(state.message, listening = false)
+                    }
+
                     is PipelineOrchestrator.State.Idle -> {
                         blockingOverlay.hide()
                         updatePanel(getString(R.string.bubble_tap_hint), listening = false)
@@ -364,6 +369,15 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
         try {
             windowManager.addView(expandedView, params)
+            // StateFlow won't re-emit to an existing collector just because the panel opened.
+            // Manually sync the current state so the status text is correct from the first frame.
+            when (val s = pipeline.state.value) {
+                is PipelineOrchestrator.State.ModelLoading ->
+                    updatePanel(s.message, listening = false)
+                is PipelineOrchestrator.State.Idle ->
+                    updatePanel(getString(R.string.bubble_tap_hint), listening = false)
+                else -> { /* active states (Recording/Thinking/…) are already streaming updates */ }
+            }
         } catch (ex: Exception) {
             Log.e(TAG, "showPanel failed: ${ex.message}")
             isExpanded = false

@@ -53,6 +53,8 @@ class PipelineOrchestrator(private val context: Context) {
 
     // ── Observable state ──────────────────────────────────────────────────────
     sealed class State {
+        /** Models are being loaded in the background; [message] describes current progress. */
+        data class ModelLoading(val message: String) : State()
         object Idle       : State()
         object Recording  : State()
         data class Transcribing(val durationSec: Float) : State()
@@ -77,14 +79,18 @@ class PipelineOrchestrator(private val context: Context) {
     /** Call once from FloatingBubbleService.onCreate() to warm engines in background. */
     fun preloadModels() {
         scope.launch {
+            _state.value = State.ModelLoading("語音辨識模型載入中…")
             val asrResult = asr.load()
             val asrName = asr::class.simpleName
             if (asrResult.success) Log.i(TAG, "$asrName ready ✓")
             else Log.w(TAG, "$asrName unavailable: ${asrResult.error}")
 
+            _state.value = State.ModelLoading("Gemma 模型載入中，首次約需 30–60 秒…")
             val llmResult = llm.load()
             if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")
             else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
+
+            _state.value = State.Idle
         }
     }
 
@@ -92,7 +98,11 @@ class PipelineOrchestrator(private val context: Context) {
 
     /** Record audio via microphone → transcribe → run LLM action loop. */
     fun startListening() {
-        if (_state.value !is State.Idle) {
+        val s = _state.value
+        if (s is State.ModelLoading) {
+            Log.w(TAG, "Models still loading — ignoring startListening()"); return
+        }
+        if (s !is State.Idle) {
             Log.w(TAG, "Pipeline busy — ignoring startListening()")
             return
         }
@@ -106,7 +116,11 @@ class PipelineOrchestrator(private val context: Context) {
     fun startWithText(text: String) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
-        if (_state.value !is State.Idle) {
+        val s = _state.value
+        if (s is State.ModelLoading) {
+            Log.w(TAG, "Models still loading — ignoring startWithText()"); return
+        }
+        if (s !is State.Idle) {
             Log.w(TAG, "Pipeline busy — ignoring startWithText()")
             return
         }
@@ -183,7 +197,12 @@ class PipelineOrchestrator(private val context: Context) {
 
                 val json = extractJson(rawResponse)
                 if (json == null) {
-                    finalError = "模型輸出格式錯誤，請重試"; break
+                    Log.e(TAG, "JSON extraction failed. Full raw response: $rawResponse")
+                    val preview = rawResponse.take(80).trim().replace('\n', ' ')
+                    finalError = "指令格式錯誤，請換個說法\n" +
+                        if (preview.isBlank()) "（模型未輸出內容）"
+                        else "模型回覆：「$preview${if (rawResponse.length > 80) "…" else ""}」"
+                    break
                 }
                 lastJson = json
                 // ensureActive: if cancel() was called while the LLM was generating, throw
