@@ -5,7 +5,7 @@ import android.util.Log
 import com.ping.elderlyassistant.AssistantAccessibilityService
 import com.ping.elderlyassistant.engine.AudioRecorder
 import com.ping.elderlyassistant.engine.LlmEngine
-import com.ping.elderlyassistant.engine.MlcLlmEngine
+import com.ping.elderlyassistant.engine.GemmaEngine
 import com.ping.elderlyassistant.engine.SenseVoiceEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +24,7 @@ import org.json.JSONObject
  * Central coordinator for the voice-to-action pipeline.
  *
  * Two entry points:
- *   [startListening]  — records audio → SenseVoice ASR → Qwen3 action loop
+ *   [startListening]  — records audio → SenseVoice ASR → Gemma 4 action loop
  *   [startWithText]   — accepts typed text, skips record/ASR, goes straight to LLM
  *
  * Multi-step loop (≤ [AutomationGuard.MAX_STEPS], timeout [AutomationGuard.TIMEOUT_MS]):
@@ -39,7 +39,7 @@ class PipelineOrchestrator(private val context: Context) {
 
     // ── Engines ───────────────────────────────────────────────────────────────
     private val asr      by lazy { SenseVoiceEngine(context) }
-    private val llm      by lazy { MlcLlmEngine(context) }
+    private val llm      by lazy { GemmaEngine(context) }
     private val recorder = AudioRecorder()
     private val executor = ActionExecutor(context)
 
@@ -73,13 +73,9 @@ class PipelineOrchestrator(private val context: Context) {
             if (asrResult.success) Log.i(TAG, "SenseVoice ready ✓")
             else Log.w(TAG, "SenseVoice unavailable: ${asrResult.error}")
 
-            if (MlcLlmEngine.isMlcAvailable) {
-                val llmResult = llm.load()
-                if (llmResult.success) Log.i(TAG, "Qwen3 ready ✓")
-                else Log.w(TAG, "Qwen3 unavailable: ${llmResult.error}")
-            } else {
-                Log.w(TAG, "mlc4j AAR not found — LLM inference disabled")
-            }
+            val llmResult = llm.load()
+            if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")
+            else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
         }
     }
 

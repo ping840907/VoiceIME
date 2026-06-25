@@ -10,9 +10,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // MLC LLM Maven repo (fallback when local AAR is not used)
-        maven { url "https://mlc.ai/package" }
-        // Local AAR directory — drop mlc4j-*.aar / sherpa-onnx-*.aar into app/libs/
+        // Local AAR directory — drop sherpa-onnx-*.aar into app/libs/
         flatDir { dirs 'app/libs' }
     }
 }

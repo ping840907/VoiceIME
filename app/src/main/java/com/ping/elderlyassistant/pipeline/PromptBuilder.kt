@@ -1,12 +1,13 @@
 package com.ping.elderlyassistant.pipeline
 
 /**
- * Constructs the full Qwen3 ChatML prompt for the voice agent.
+ * Constructs prompts for the Gemma 4 E2B voice agent (LiteRT LM backend).
  *
- * Structure:
- *   system  — role definition + JSON schema + 5 few-shot examples
- *   user    — instruction + serialised node tree (current screen)
- *   assistant — (empty, model fills in)
+ * [SYSTEM_INSTRUCTION] — role + schema + few-shot examples.
+ *   Injected once per LiteRT conversation via ConversationConfig.systemInstruction().
+ *
+ * [build] — plain user message (instruction + current screen nodes + optional history).
+ *   No ChatML tags; the LiteRT LM runtime handles conversation formatting.
  *
  * Few-shot coverage:
  *   1. 撥打電話 (tap a call button visible on screen)
@@ -116,9 +117,8 @@ object PromptBuilder {
         }
     }.trim()
 
-    // ── System prompt (Qwen3 ChatML with /no_think) ───────────────────────────
-    private val SYSTEM_PROMPT = buildString {
-        appendLine("/no_think")
+    // ── System instruction (injected via ConversationConfig.systemInstruction()) ─
+    val SYSTEM_INSTRUCTION = buildString {
         appendLine("你是一位 Android 手機操作助理，服務台灣用戶。")
         appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解並執行任務。")
         appendLine("根據「使用者指令」和「畫面節點」，輸出一個 JSON 動作。")
@@ -134,41 +134,33 @@ object PromptBuilder {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Build the full prompt for a single agent step.
+     * Build the user message for a single agent step.
+     *
+     * The system instruction is handled separately by [GemmaEngine] via
+     * ConversationConfig.systemInstruction() — do NOT include it here.
      *
      * @param instruction  Transcribed speech from user
      * @param nodeTree     Output of NodeSerializer.serializeForLlm()
-     * @param history      Optional previous (instruction, action) pairs for multi-turn context
+     * @param history      Previous (instruction, action) pairs for multi-step context
      */
     fun build(
         instruction: String,
         nodeTree: String,
         history: List<Pair<String, String>> = emptyList()
     ): String = buildString {
-        append("<|im_start|>system\n")
-        append(SYSTEM_PROMPT)
-        append("\n<|im_end|>\n")
-
-        // Optional multi-turn history (Phase 3+ multi-step support)
+        // Prior steps embedded as context so the model understands progress
         for ((prevInstruction, prevAction) in history) {
-            append("<|im_start|>user\n")
-            append("指令：$prevInstruction\n")
-            append("<|im_end|>\n")
-            append("<|im_start|>assistant\n")
-            append(prevAction)
-            append("\n<|im_end|>\n")
+            appendLine("前一步驟指令：$prevInstruction")
+            appendLine("前一步驟動作：$prevAction")
+            appendLine()
         }
 
-        // Current turn
-        append("<|im_start|>user\n")
         append("## 使用者指令\n$instruction\n\n")
         if (nodeTree.isNotBlank()) {
             append("## 當前畫面節點\n$nodeTree")
         } else {
             append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)")
         }
-        append("\n<|im_end|>\n")
-        append("<|im_start|>assistant\n")
     }
 
 }
