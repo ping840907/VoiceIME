@@ -8,6 +8,7 @@ import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.ping.elderlyassistant.pipeline.PromptBuilder
@@ -108,7 +109,7 @@ class GemmaEngine(private val context: Context) : LlmEngine {
             val convConfig = ConversationConfig(
                 // SamplerConfig must be null when using NPU backend
                 samplerConfig = if (_activeBackend == "NPU") null else SamplerConfig(
-                    topK        = ModelConfig.LLM_TOP_K.toLong(),
+                    topK        = ModelConfig.LLM_TOP_K,
                     topP        = 0.9,
                     temperature = temperature.toDouble(),
                 ),
@@ -125,15 +126,16 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                 conversation.sendMessageAsync(
                     Contents.of(mutableListOf(Content.Text(prompt))),
                     object : MessageCallback {
-                        override fun onMessage(partial: String) {
+                        override fun onMessage(message: Message) {
+                            val partial = message.text
                             sb.append(partial)
                             onToken(partial)
                         }
                         override fun onDone() {
                             if (cont.isActive) cont.resume(Unit)
                         }
-                        override fun onError(ex: Exception) {
-                            if (cont.isActive) cont.resumeWithException(ex)
+                        override fun onError(throwable: Throwable) {
+                            if (cont.isActive) cont.resumeWithException(throwable)
                         }
                     },
                     emptyMap()
