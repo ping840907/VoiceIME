@@ -57,6 +57,10 @@ dependencies {
     // 4. Update the name below to match (e.g. sherpa-onnx-1.13.3)
     implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 
+    // ── OpenCC4j — Simplified → Traditional Chinese post-processing ──────────
+    // Pure-Java OpenCC wrapper; no JNI, no extra repo needed (Maven Central).
+    implementation 'com.github.houbb:opencc4j:1.8.1'
+
     // ── LiteRT LM for Gemma 4 E2B ────────────────────────────────────────────
     // Available on google() / Maven Central — no extra repository needed.
     // Coordinates from google-ai-edge/gallery libs.versions.toml (v0.11.0).

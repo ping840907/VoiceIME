@@ -2,6 +2,7 @@ package com.ping.elderlyassistant.pipeline
 
 import android.content.Context
 import android.util.Log
+import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.ping.elderlyassistant.AssistantAccessibilityService
 import com.ping.elderlyassistant.ServicePrefs
 import com.ping.elderlyassistant.engine.AsrEngine
@@ -90,6 +91,9 @@ class PipelineOrchestrator(private val context: Context) {
             if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")
             else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
 
+            // Pre-warm OpenCC dictionary so first transcription doesn't pay the load cost.
+            runCatching { ZhConverterUtil.toTraditional("预热") }
+
             _state.value = State.Idle
         }
     }
@@ -160,8 +164,10 @@ class PipelineOrchestrator(private val context: Context) {
             if (!res.success) { emitTerminal(State.Error("語音辨識未就緒：${res.error}")); return }
         }
 
-        val transcript = asr.transcribe(recording.samples)
-        if (transcript.isBlank()) { emitTerminal(State.Error("未偵測到語音，請重說")); return }
+        val rawTranscript = asr.transcribe(recording.samples)
+        if (rawTranscript.isBlank()) { emitTerminal(State.Error("未偵測到語音，請重說")); return }
+        val transcript = runCatching { ZhConverterUtil.toTraditional(rawTranscript) }
+            .getOrDefault(rawTranscript)
         Log.i(TAG, "Transcript: \"$transcript\"")
 
         // 3. LLM + action loop
