@@ -30,10 +30,10 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
-    kotlinOptions { jvmTarget = '1.8' }
+    kotlinOptions { jvmTarget = '21' }
     buildFeatures { viewBinding true; buildConfig true }
 }
 
@@ -47,7 +47,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
 
     // Coroutines: all heavy work (recording, ASR, LLM) runs on Dispatchers.IO
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // ── SenseVoice ASR via sherpa-onnx ───────────────────────────────────────
     // sherpa-onnx does NOT publish to Maven Central; AAR must be downloaded manually.
