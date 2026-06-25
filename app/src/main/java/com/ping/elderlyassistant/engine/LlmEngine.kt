@@ -1,12 +1,10 @@
 package com.ping.elderlyassistant.engine
 
 /**
- * Abstraction over the on-device LLM backend (currently mlc4j / MLC LLM).
+ * Abstraction over the on-device LLM backend (currently LiteRT LM / Gemma 4 E2B).
  *
- * Keeping inference behind this interface means:
- *  - Phase 2: load + bench with pure text, no AccessibilityService involvement
- *  - Phase 3: generate() receives the composed prompt and streams action JSON
- *  - Future: swap backend (llama.cpp, MNN, etc.) without touching the pipeline
+ * Keeping inference behind this interface allows swapping the backend
+ * (e.g. llama.cpp, MNN) without touching the pipeline.
  */
 interface LlmEngine {
 
@@ -31,8 +29,8 @@ interface LlmEngine {
      * Generate a response for [prompt], streaming each new token to [onToken].
      * Returns the full concatenated response.
      *
-     * The [prompt] is expected to already be in the model's chat template format
-     * (ChatML for Qwen). [PipelineOrchestrator] constructs the prompt.
+     * The [prompt] is a plain user message; the LiteRT LM runtime handles
+     * chat template formatting. [PipelineOrchestrator] constructs the prompt.
      */
     suspend fun generate(
         prompt: String,

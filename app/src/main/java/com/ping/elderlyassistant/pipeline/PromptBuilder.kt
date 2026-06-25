@@ -7,7 +7,7 @@ package com.ping.elderlyassistant.pipeline
  *   Injected once per LiteRT conversation via ConversationConfig.systemInstruction().
  *
  * [build] — plain user message (instruction + current screen nodes + optional history).
- *   No ChatML tags; the LiteRT LM runtime handles conversation formatting.
+ *   LiteRT LM handles conversation formatting; no template tags needed here.
  *
  * Few-shot coverage:
  *   1. 撥打電話 (tap a call button visible on screen)

@@ -36,8 +36,8 @@ import kotlin.math.abs
  *   Collapsed ──tap──> Expanded ──✕──> Collapsed
  *
  * Expanded panel input modes (can switch freely):
- *   Voice mode : tap 話 button → record → SenseVoice → Qwen3 → execute
- *   Keyboard mode : tap ⌨ button → EditText appears → type → send → Qwen3 → execute
+ *   Voice mode : tap 話 button → record → SenseVoice → Gemma 4 → execute
+ *   Keyboard mode : tap ⌨ button → EditText appears → type → send → Gemma 4 → execute
  *
  * Safety:
  *   • Expanded panel has FLAG_NOT_FOCUSABLE so rootInActiveWindow in the

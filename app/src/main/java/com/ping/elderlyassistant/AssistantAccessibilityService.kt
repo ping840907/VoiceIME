@@ -100,8 +100,8 @@ class AssistantAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Compact LLM-optimised serialisation (≤35 nodes, interactive-first).
-     * Use this variant when building the Qwen3 prompt to stay within the token budget.
+     * Compact LLM-optimised serialisation (≤35 nodes, interactive-first)
+     * to stay within the Gemma token budget.
      */
     fun captureNodeTreeForLlm(): NodeSerializer.SerializedTree? {
         val root: AccessibilityNodeInfo = rootInActiveWindow ?: return null

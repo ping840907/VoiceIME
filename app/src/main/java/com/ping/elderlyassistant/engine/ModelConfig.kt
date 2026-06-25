@@ -14,22 +14,18 @@ import android.content.Context
  *   • Runs via sherpa-onnx AAR on CPU — no custom NDK build required
  *   • Model: model.int8.onnx (~234 MB) + tokens.txt
  *
- * LLM: Qwen3-1.7B (Alibaba, April 2025)
- *   • Replaces Qwen2.5-1.5B — better reasoning at the same parameter count
- *   • Native function-calling / tool-use schema → more reliable JSON output
- *   • Hybrid thinking: add `/no_think` in system prompt for fast agent mode
- *   • Q4F16_1 quantisation ≈ 1.1 GB; fits comfortably in 12 GB POCO F6 RAM
- *   • Available via MLC LLM for Android (OpenCL / GPU acceleration)
+ * LLM: Gemma 4 E2B (Google, 2025)
+ *   • Efficient 2B model — strong reasoning / instruction-following at low latency
+ *   • INT4 quantised .task bundle (~1.3 GB); runs on GPU (OpenCL) or NPU (QNN)
+ *   • Delivered as a single .task file via LiteRT LM (litert-lm-android AAR)
+ *   • No custom compile step; model download from Hugging Face or AI Edge Gallery
  *
  * ── Model file placement ───────────────────────────────────────────────────
  *   /sdcard/Android/data/com.ping.elderlyassistant[.debug]/files/models/
  *       sense_voice/
  *           model.int8.onnx
  *           tokens.txt
- *       Qwen3-1.7B-q4f16_1/
- *           mlc-chat-config.json
- *           ndarray-cache.json
- *           params_shard_*.bin
+ *       gemma4-e2b-it-int4.task
  *
  * No READ_EXTERNAL_STORAGE permission needed (app-specific external storage).
  */

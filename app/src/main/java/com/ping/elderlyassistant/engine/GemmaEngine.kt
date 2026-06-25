@@ -35,9 +35,15 @@ import kotlin.coroutines.resumeWithException
  *          /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
  *
  * ── Backend priority ──────────────────────────────────────────────────────────
- *   1. GPU  (OpenCL — Adreno / Mali; ~8–20 t/s on mid-range SoC)
- *   2. CPU  (always available; ~1–3 t/s — last resort)
- *   NPU skipped: requires Qualcomm QNN native libs bundled in APK.
+ *   1. NPU  (Qualcomm QNN / Google AICore)
+ *          Works when QNN runtime libs are available:
+ *          a) Bundled in APK → app/src/main/jniLibs/arm64-v8a/libQnn*.so
+ *             (download from Qualcomm AI Engine Direct SDK)
+ *          b) System-installed on supported devices (Pixel 8+ with AICore,
+ *             some Snapdragon flagships with vendor QNN drivers accessible to apps)
+ *          Falls back automatically if QNN libs are absent.
+ *   2. GPU  (OpenCL — Adreno / Mali; ~8–20 t/s on mid-range SoC)
+ *   3. CPU  (always available; ~1–3 t/s — last resort)
  *
  * ── LiteRT LM API reference ───────────────────────────────────────────────────
  *   https://github.com/google-ai-edge/gallery
@@ -70,8 +76,12 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         val modelPath = ModelConfig.gemmaModelPath(context)
         val cacheDir  = (context.externalCacheDir ?: context.cacheDir).absolutePath
 
-        // GPU first (fast), CPU fallback (always available)
+        // NPU first (fastest when available), GPU next, CPU as last resort.
+        // NPU requires QNN libs — either bundled in jniLibs/ or system-installed.
+        // Failed backends throw and are skipped automatically.
+        val nativeLibDir = context.applicationInfo.nativeLibraryDir
         val backends = listOf<Pair<String, () -> Backend>>(
+            "NPU" to { Backend.NPU(nativeLibDir) },
             "GPU" to { Backend.GPU() },
             "CPU" to { Backend.CPU() },
         )
