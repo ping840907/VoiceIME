@@ -3,9 +3,12 @@ package com.ping.elderlyassistant.pipeline
 import android.content.Context
 import android.util.Log
 import com.ping.elderlyassistant.AssistantAccessibilityService
+import com.ping.elderlyassistant.ServicePrefs
+import com.ping.elderlyassistant.engine.AsrEngine
 import com.ping.elderlyassistant.engine.AudioRecorder
-import com.ping.elderlyassistant.engine.LlmEngine
 import com.ping.elderlyassistant.engine.GemmaEngine
+import com.ping.elderlyassistant.engine.LlmEngine
+import com.ping.elderlyassistant.engine.Qwen3AsrEngine
 import com.ping.elderlyassistant.engine.SenseVoiceEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,8 +41,13 @@ class PipelineOrchestrator(private val context: Context) {
     }
 
     // ── Engines ───────────────────────────────────────────────────────────────
-    private val asr      by lazy { SenseVoiceEngine(context) }
-    private val llm      by lazy { GemmaEngine(context) }
+    private val asr: AsrEngine by lazy {
+        when (ServicePrefs.getAsrEngine(context)) {
+            ServicePrefs.ASR_ENGINE_QWEN3 -> Qwen3AsrEngine(context)
+            else                           -> SenseVoiceEngine(context)
+        }
+    }
+    private val llm by lazy { GemmaEngine(context) }
     private val recorder = AudioRecorder()
     private val executor = ActionExecutor(context)
 
@@ -70,8 +78,9 @@ class PipelineOrchestrator(private val context: Context) {
     fun preloadModels() {
         scope.launch {
             val asrResult = asr.load()
-            if (asrResult.success) Log.i(TAG, "SenseVoice ready ✓")
-            else Log.w(TAG, "SenseVoice unavailable: ${asrResult.error}")
+            val asrName = asr::class.simpleName
+            if (asrResult.success) Log.i(TAG, "$asrName ready ✓")
+            else Log.w(TAG, "$asrName unavailable: ${asrResult.error}")
 
             val llmResult = llm.load()
             if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")

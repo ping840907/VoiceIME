@@ -7,12 +7,15 @@ import android.content.Context
  *
  * ── Model selection rationale (June 2026) ──────────────────────────────────
  *
- * ASR: SenseVoice-Small (FunAudioLLM / Alibaba, 2024)
+ * ASR (selectable in app settings):
+ *   SenseVoice-Small (FunAudioLLM / Alibaba, 2024) — default
  *   • 15× faster than Whisper-Large; ~3× lower CER on Chinese vs whisper.cpp tiny
  *   • Non-autoregressive → latency scales with audio length, not model depth
  *   • Supports Mandarin, Taiwanese, Cantonese, 50+ languages
- *   • Runs via sherpa-onnx AAR on CPU — no custom NDK build required
  *   • Model: model.int8.onnx (~234 MB) + tokens.txt
+ *   Qwen3-ASR-0.6B-int8 (Alibaba, 2026)
+ *   • Autoregressive transformer; stronger on noisy/accented speech (~600 MB)
+ *   • Model dir: sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/
  *
  * LLM: Gemma 4 E2B (Google, 2025)
  *   • Efficient 2B model — strong reasoning / instruction-following at low latency
@@ -25,6 +28,11 @@ import android.content.Context
  *       sense_voice/
  *           model.int8.onnx
  *           tokens.txt
+ *       qwen3_asr/
+ *           conv_frontend.onnx
+ *           encoder.int8.onnx
+ *           decoder.int8.onnx
+ *           tokenizer/
  *       gemma4-e2b-it-int4.task
  *
  * No READ_EXTERNAL_STORAGE permission needed (app-specific external storage).
@@ -66,6 +74,14 @@ object ModelConfig {
      */
     val ASR_PROVIDER_PRIORITY = listOf("nnapi", "cpu")
 
+    // ── Qwen3-ASR-0.6B-int8 ──────────────────────────────────────────────────
+    const val QWEN3_ASR_DIR              = "qwen3_asr"
+    const val QWEN3_ASR_CONV_FRONTEND    = "conv_frontend.onnx"
+    const val QWEN3_ASR_ENCODER         = "encoder.int8.onnx"
+    const val QWEN3_ASR_DECODER         = "decoder.int8.onnx"
+    const val QWEN3_ASR_TOKENIZER_DIR   = "tokenizer"
+    const val QWEN3_ASR_THREADS         = 4
+
     // ── Gemma 4 E2B via LiteRT LM ────────────────────────────────────────────
     /** Single .task file containing weights + tokenizer for Gemma 4 E2B INT4. */
     const val GEMMA_MODEL_FILE = "gemma4-e2b-it-int4.task"
@@ -101,6 +117,21 @@ object ModelConfig {
 
     fun senseVoiceTokensPath(context: Context): String =
         "${senseVoiceDir(context)}/$SENSE_VOICE_TOKENS_FILE"
+
+    fun qwen3AsrDir(context: Context): String =
+        "${modelsDir(context)}/$QWEN3_ASR_DIR"
+
+    fun qwen3AsrConvFrontendPath(context: Context): String =
+        "${qwen3AsrDir(context)}/$QWEN3_ASR_CONV_FRONTEND"
+
+    fun qwen3AsrEncoderPath(context: Context): String =
+        "${qwen3AsrDir(context)}/$QWEN3_ASR_ENCODER"
+
+    fun qwen3AsrDecoderPath(context: Context): String =
+        "${qwen3AsrDir(context)}/$QWEN3_ASR_DECODER"
+
+    fun qwen3AsrTokenizerDir(context: Context): String =
+        "${qwen3AsrDir(context)}/$QWEN3_ASR_TOKENIZER_DIR"
 
     fun gemmaModelPath(context: Context): String =
         "${modelsDir(context)}/$GEMMA_MODEL_FILE"

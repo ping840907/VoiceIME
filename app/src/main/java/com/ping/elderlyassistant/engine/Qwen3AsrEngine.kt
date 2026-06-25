@@ -4,9 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
+import com.k2fsa.sherpa.onnx.OfflineQwen3AsrModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
-import com.k2fsa.sherpa.onnx.OfflineSenseVoiceModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,21 +14,23 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * [AsrEngine] backed by SenseVoice-Small via sherpa-onnx.
+ * [AsrEngine] backed by Qwen3-ASR-0.6B-int8 via sherpa-onnx.
  *
- * Strengths: non-autoregressive (very fast), ~234 MB, built-in language
- * detection for Taiwan Mandarin + Taiwanese Hokkien code-switching.
+ * Strengths: autoregressive transformer, stronger accuracy on noisy/accented
+ * speech and Taiwanese code-switching; larger model (~600 MB).
  *
  * Model placement:
- *   .../files/models/sense_voice/model.int8.onnx
- *   .../files/models/sense_voice/tokens.txt
- * Download: https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
- *   (sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)
+ *   .../files/models/qwen3_asr/
+ *       conv_frontend.onnx
+ *       encoder.int8.onnx
+ *       decoder.int8.onnx
+ *       tokenizer/         (directory with vocab files)
+ * Download: sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25 release asset
  */
-class SenseVoiceEngine(private val context: Context) : AsrEngine {
+class Qwen3AsrEngine(private val context: Context) : AsrEngine {
 
     companion object {
-        private const val TAG = "SenseVoiceEngine"
+        private const val TAG = "Qwen3AsrEngine"
     }
 
     @Volatile private var recognizer: OfflineRecognizer? = null
@@ -36,23 +38,24 @@ class SenseVoiceEngine(private val context: Context) : AsrEngine {
 
     override fun isLoaded(): Boolean = recognizer != null
 
-    /**
-     * Loads the SenseVoice recognizer, trying each provider in
-     * [ModelConfig.ASR_PROVIDER_PRIORITY] (nnapi → cpu) until one succeeds.
-     */
     override suspend fun load(): AsrEngine.LoadResult = loadMutex.withLock {
         if (isLoaded()) return@withLock AsrEngine.LoadResult(success = true)
         withContext(Dispatchers.IO) {
-            val modelPath  = ModelConfig.senseVoiceModelPath(context)
-            val tokensPath = ModelConfig.senseVoiceTokensPath(context)
+            val dir           = ModelConfig.qwen3AsrDir(context)
+            val convFrontend  = ModelConfig.qwen3AsrConvFrontendPath(context)
+            val encoder       = ModelConfig.qwen3AsrEncoderPath(context)
+            val decoder       = ModelConfig.qwen3AsrDecoderPath(context)
+            val tokenizer     = ModelConfig.qwen3AsrTokenizerDir(context)
 
-            if (!File(modelPath).exists()) return@withContext AsrEngine.LoadResult(
+            for (path in listOf(convFrontend, encoder, decoder)) {
+                if (!File(path).exists()) return@withContext AsrEngine.LoadResult(
+                    success = false,
+                    error   = "Qwen3-ASR file not found: $path"
+                )
+            }
+            if (!File(tokenizer).isDirectory) return@withContext AsrEngine.LoadResult(
                 success = false,
-                error   = "SenseVoice model not found: $modelPath"
-            )
-            if (!File(tokensPath).exists()) return@withContext AsrEngine.LoadResult(
-                success = false,
-                error   = "Tokens file not found: $tokensPath"
+                error   = "Qwen3-ASR tokenizer dir not found: $tokenizer"
             )
 
             release()
@@ -60,14 +63,12 @@ class SenseVoiceEngine(private val context: Context) : AsrEngine {
             var lastError: Exception? = null
             for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
                 try {
-                    // Positional args: sherpa-onnx AAR may not expose Kotlin named-param metadata
-                    val svConfig = OfflineSenseVoiceModelConfig(
-                        modelPath, ModelConfig.ASR_LANGUAGE, ModelConfig.ASR_USE_ITN
+                    val qwen3Config = OfflineQwen3AsrModelConfig(
+                        convFrontend, encoder, decoder, tokenizer
                     )
                     val modelConfig = OfflineModelConfig(
-                        senseVoice = svConfig,
-                        tokens     = tokensPath,
-                        numThreads = ModelConfig.SENSE_VOICE_THREADS,
+                        qwen3Asr   = qwen3Config,
+                        numThreads = ModelConfig.QWEN3_ASR_THREADS,
                         provider   = provider,
                     )
                     val recConfig = OfflineRecognizerConfig(
@@ -78,7 +79,7 @@ class SenseVoiceEngine(private val context: Context) : AsrEngine {
                         modelConfig = modelConfig,
                     )
                     recognizer = OfflineRecognizer(config = recConfig)
-                    Log.i(TAG, "SenseVoice loaded (provider='$provider'  model=$modelPath)")
+                    Log.i(TAG, "Qwen3-ASR loaded (provider='$provider'  dir=$dir)")
                     return@withContext AsrEngine.LoadResult(success = true)
                 } catch (ex: Exception) {
                     Log.w(TAG, "ASR provider '$provider' failed: ${ex.message}")
@@ -108,7 +109,7 @@ class SenseVoiceEngine(private val context: Context) : AsrEngine {
                 stream.acceptWaveform(samples, ModelConfig.ASR_SAMPLE_RATE)
                 r.decode(stream)
                 val text = r.getResult(stream).text
-                Log.i(TAG, "SenseVoice transcribed ${samples.size / 16000f}s in ${System.currentTimeMillis() - t0}ms: \"$text\"")
+                Log.i(TAG, "Qwen3-ASR transcribed ${samples.size / 16000f}s in ${System.currentTimeMillis() - t0}ms: \"$text\"")
                 text
             } finally {
                 runCatching { stream.release() }

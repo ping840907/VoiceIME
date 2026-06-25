@@ -9,8 +9,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -38,6 +41,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnAccessibility:      Button
     private lateinit var btnBattery:            Button
     private lateinit var btnToggleService:      Button
+    private lateinit var rgAsrEngine:           RadioGroup
+    private lateinit var rbAsrSenseVoice:       RadioButton
+    private lateinit var rbAsrQwen3:            RadioButton
+    private lateinit var tvAsrRestartHint:      TextView
 
     private var serviceRunning = false
 
@@ -61,6 +68,10 @@ class MainActivity : AppCompatActivity() {
         btnAccessibility      = findViewById(R.id.btn_accessibility_permission)
         btnBattery            = findViewById(R.id.btn_battery_permission)
         btnToggleService      = findViewById(R.id.btn_toggle_service)
+        rgAsrEngine           = findViewById(R.id.rg_asr_engine)
+        rbAsrSenseVoice       = findViewById(R.id.rb_asr_sensevoice)
+        rbAsrQwen3            = findViewById(R.id.rb_asr_qwen3)
+        tvAsrRestartHint      = findViewById(R.id.tv_asr_restart_hint)
 
         btnMic.setOnClickListener {
             requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
@@ -69,6 +80,8 @@ class MainActivity : AppCompatActivity() {
         btnAccessibility.setOnClickListener { openAccessibilitySettings() }
         btnBattery.setOnClickListener { openBatterySettings() }
         btnToggleService.setOnClickListener { toggleService() }
+
+        initAsrEngineSelector()
     }
 
     override fun onResume() {
@@ -139,6 +152,24 @@ class MainActivity : AppCompatActivity() {
         )
         btn.text = if (granted) "已完成 ✓" else btnLabel
         btn.isEnabled = !granted
+    }
+
+    // ── ASR engine selector ───────────────────────────────────────────────────
+
+    private fun initAsrEngineSelector() {
+        val current = ServicePrefs.getAsrEngine(this)
+        rbAsrSenseVoice.isChecked = (current == ServicePrefs.ASR_ENGINE_SENSEVOICE)
+        rbAsrQwen3.isChecked      = (current == ServicePrefs.ASR_ENGINE_QWEN3)
+
+        rgAsrEngine.setOnCheckedChangeListener { _, checkedId ->
+            val engine = when (checkedId) {
+                R.id.rb_asr_qwen3 -> ServicePrefs.ASR_ENGINE_QWEN3
+                else               -> ServicePrefs.ASR_ENGINE_SENSEVOICE
+            }
+            ServicePrefs.setAsrEngine(this, engine)
+            tvAsrRestartHint.visibility =
+                if (serviceRunning) View.VISIBLE else View.GONE
+        }
     }
 
     // ── Permission navigation ─────────────────────────────────────────────────

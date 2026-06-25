@@ -36,6 +36,13 @@
     <string name="btn_battery_exempt">前往設定</string>
     <string name="status_needs_permission">請授予所有必要權限（共四項）</string>
 
+    <!-- ASR engine selection -->
+    <string name="title_asr_engine">語音辨識引擎</string>
+    <string name="desc_asr_engine">選擇語音辨識模型。切換後需重新啟動語音助理才會生效。</string>
+    <string name="asr_sensevoice_label">SenseVoice-Small（推薦）—— 速度快，約 234 MB</string>
+    <string name="asr_qwen3_label">Qwen3-ASR-0.6B —— 精確度高，約 600 MB</string>
+    <string name="asr_restart_hint">設定已儲存，請重新啟動語音助理以套用變更。</string>
+
     <!-- Keyboard text input (bubble expanded panel) -->
     <string name="hint_type_command">請輸入指令…</string>
     <string name="btn_send">送出</string>
