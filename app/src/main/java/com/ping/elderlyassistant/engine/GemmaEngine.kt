@@ -2,12 +2,14 @@ package com.ping.elderlyassistant.engine
 
 import android.content.Context
 import android.util.Log
-import com.google.ai.edge.litert.lm.Backend
-import com.google.ai.edge.litert.lm.Conversation
-import com.google.ai.edge.litert.lm.ConversationConfig
-import com.google.ai.edge.litert.lm.Engine
-import com.google.ai.edge.litert.lm.EngineConfig
-import com.google.ai.edge.litert.lm.MessageCallback
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.ConversationConfig
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.MessageCallback
+import com.google.ai.edge.litertlm.SamplerConfig
 import com.ping.elderlyassistant.pipeline.PromptBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -16,40 +18,16 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * LlmEngine backed by Google LiteRT LM (litert-lm-android AAR).
+ * [LlmEngine] backed by Google LiteRT LM (litertlm-android:0.11.0).
+ *
+ * Dependency: com.google.ai.edge.litertlm:litertlm-android:0.11.0
+ * Coordinates sourced from google-ai-edge/gallery libs.versions.toml.
  *
  * Model: Gemma 4 E2B  (gemma4-e2b-it-int4.task — ~1.3 GB)
+ * Placement: /sdcard/Android/data/com.ping.elderlyassistant[.debug]/files/models/
  *
- * ── Model file placement ──────────────────────────────────────────────────────
- *   /sdcard/Android/data/com.ping.elderlyassistant[.debug]/files/models/
- *       gemma4-e2b-it-int4.task
- *
- * ── Setup checklist ───────────────────────────────────────────────────────────
- *   1. Add to app/build.gradle:
- *        implementation 'com.google.ai.edge.litert:litert-lm-android:1.0.0'
- *   2. Download the model:
- *        https://huggingface.co/google/gemma-4-e2b-it-litert-preview
- *      or via Google AI Edge Gallery's "Download" flow.
- *   3. Push to device:
- *        adb push gemma4-e2b-it-int4.task \
- *          /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
- *
- * ── Backend priority ──────────────────────────────────────────────────────────
- *   1. NPU  (Qualcomm QNN / Google AICore)
- *          Works when QNN runtime libs are available:
- *          a) Bundled in APK → app/src/main/jniLibs/arm64-v8a/libQnn*.so
- *             (download from Qualcomm AI Engine Direct SDK)
- *          b) System-installed on supported devices (Pixel 8+ with AICore,
- *             some Snapdragon flagships with vendor QNN drivers accessible to apps)
- *          Falls back automatically if QNN libs are absent.
- *   2. GPU  (OpenCL — Adreno / Mali; ~8–20 t/s on mid-range SoC)
- *   3. CPU  (always available; ~1–3 t/s — last resort)
- *
- * ── LiteRT LM API reference ───────────────────────────────────────────────────
- *   https://github.com/google-ai-edge/gallery
- *   Package: com.google.ai.edge.litert.lm
- *   Key classes: Engine, EngineConfig, Conversation, ConversationConfig,
- *                MessageCallback, Backend
+ * Backend priority: NPU (QNN) → GPU → CPU
+ * Note: SamplerConfig is passed as null for NPU per LiteRT LM requirement.
  */
 class GemmaEngine(private val context: Context) : LlmEngine {
 
@@ -62,24 +40,15 @@ class GemmaEngine(private val context: Context) : LlmEngine {
     @Volatile private var _activeBackend = ""
     private var _stats = LlmEngine.InferenceStats()
 
-    // ── LlmEngine ─────────────────────────────────────────────────────────────
-
     override fun isLoaded(): Boolean = _loaded
 
-    /**
-     * Loads Gemma 4 E2B, trying GPU then CPU.
-     * Each failed backend is logged and skipped; the first success is used.
-     */
     override suspend fun load(): LlmEngine.LoadResult = withContext(Dispatchers.IO) {
         if (_loaded) return@withContext LlmEngine.LoadResult(success = true)
 
-        val modelPath = ModelConfig.gemmaModelPath(context)
-        val cacheDir  = (context.externalCacheDir ?: context.cacheDir).absolutePath
-
-        // NPU first (fastest when available), GPU next, CPU as last resort.
-        // NPU requires QNN libs — either bundled in jniLibs/ or system-installed.
-        // Failed backends throw and are skipped automatically.
+        val modelPath    = ModelConfig.gemmaModelPath(context)
+        val cacheDir     = (context.externalCacheDir ?: context.cacheDir).absolutePath
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
+
         val backends = listOf<Pair<String, () -> Backend>>(
             "NPU" to { Backend.NPU(nativeLibDir) },
             "GPU" to { Backend.GPU() },
@@ -89,12 +58,13 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         var lastError: Exception? = null
         for ((name, backendFactory) in backends) {
             try {
-                val config = EngineConfig.Builder()
-                    .modelPath(modelPath)
-                    .backend(backendFactory())
-                    .cacheDir(cacheDir)
-                    .build()
-                val e = Engine(context, config)
+                val config = EngineConfig(
+                    modelPath    = modelPath,
+                    backend      = backendFactory(),
+                    maxNumTokens = ModelConfig.LLM_MAX_NEW_TOKENS,
+                    cacheDir     = cacheDir,
+                )
+                val e = Engine(config)
                 e.initialize()
                 engine         = e
                 _activeBackend = name
@@ -120,14 +90,6 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         Log.i(TAG, "Gemma unloaded")
     }
 
-    /**
-     * Generate a response for [prompt].
-     *
-     * Each call creates a fresh [Conversation] so history state doesn't accumulate
-     * across pipeline steps (history is already embedded in the prompt by
-     * [PromptBuilder.build]).  The system instruction is injected once per
-     * conversation via [ConversationConfig].
-     */
     override suspend fun generate(
         prompt: String,
         maxTokens: Int,
@@ -143,28 +105,39 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         val sb = StringBuilder()
 
         try {
-            val convConfig: ConversationConfig = ConversationConfig.Builder()
-                .topK(ModelConfig.LLM_TOP_K)
-                .temperature(temperature)
-                .maxOutputTokens(maxTokens)
-                .systemInstruction(PromptBuilder.SYSTEM_INSTRUCTION)
-                .build()
+            val convConfig = ConversationConfig(
+                // SamplerConfig must be null when using NPU backend
+                samplerConfig = if (_activeBackend == "NPU") null else SamplerConfig(
+                    topK        = ModelConfig.LLM_TOP_K.toLong(),
+                    topP        = 0.9,
+                    temperature = temperature.toDouble(),
+                ),
+                systemInstruction = Contents.of(
+                    mutableListOf(Content.Text(PromptBuilder.SYSTEM_INSTRUCTION))
+                ),
+                tools           = emptyList(),
+                initialMessages = emptyList(),
+            )
 
-            val conversation: Conversation = e.createConversation(convConfig)
+            val conversation = e.createConversation(convConfig)
 
             suspendCancellableCoroutine<Unit> { cont ->
-                conversation.sendMessageAsync(prompt, object : MessageCallback {
-                    override fun onMessage(partial: String) {
-                        sb.append(partial)
-                        onToken(partial)
-                    }
-                    override fun onDone() {
-                        if (cont.isActive) cont.resume(Unit)
-                    }
-                    override fun onError(ex: Exception) {
-                        if (cont.isActive) cont.resumeWithException(ex)
-                    }
-                })
+                conversation.sendMessageAsync(
+                    Contents.of(mutableListOf(Content.Text(prompt))),
+                    object : MessageCallback {
+                        override fun onMessage(partial: String) {
+                            sb.append(partial)
+                            onToken(partial)
+                        }
+                        override fun onDone() {
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+                        override fun onError(ex: Exception) {
+                            if (cont.isActive) cont.resumeWithException(ex)
+                        }
+                    },
+                    emptyMap()
+                )
                 cont.invokeOnCancellation { runCatching { conversation.cancelProcess() } }
             }
         } catch (ex: Exception) {

@@ -206,8 +206,10 @@ implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 **LiteRT LM**（Maven，已加入 `app/build.gradle`）：
 
 ```groovy
-implementation 'com.google.ai.edge.litert:litert-lm-android:1.0.0'
+implementation 'com.google.ai.edge.litertlm:litertlm-android:0.11.0'
 ```
+
+> 版本號參考 [google-ai-edge/gallery](https://github.com/google-ai-edge/gallery) 的 `libs.versions.toml`。
 
 ### 2. 編譯
 
