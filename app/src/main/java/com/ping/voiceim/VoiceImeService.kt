@@ -295,7 +295,7 @@ class VoiceImeService : InputMethodService() {
         chip.chipMinHeight = (32 * resources.displayMetrics.density)
         chip.chipStartPadding = (8 * resources.displayMetrics.density)
         chip.chipEndPadding   = (8 * resources.displayMetrics.density)
-        chip.closeIconVisible = false
+        chip.isCloseIconVisible = false
         return chip
     }
 
