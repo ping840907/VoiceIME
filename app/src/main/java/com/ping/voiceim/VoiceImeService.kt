@@ -11,6 +11,8 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.BackgroundColorSpan
 import android.util.Log
+import android.view.ContextThemeWrapper
+import android.view.LayoutInflater
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -37,6 +39,9 @@ class VoiceImeService : InputMethodService() {
     companion object {
         private const val TAG = "VoiceImeService"
     }
+
+    // IME runs under the bare system theme; wrap it so AppCompat/Material widgets inflate correctly.
+    private val themedCtx by lazy { ContextThemeWrapper(this, R.style.Theme_VoiceAssistant) }
 
     private val scope    = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val asr      = lazy { Qwen3AsrEngine(this) }
@@ -72,7 +77,7 @@ class VoiceImeService : InputMethodService() {
     private var state = State.IDLE
 
     override fun onCreateInputView(): View {
-        val view = layoutInflater.inflate(R.layout.ime_keyboard, null)
+        val view = LayoutInflater.from(themedCtx).inflate(R.layout.ime_keyboard, null)
 
         tvTranscription      = view.findViewById(R.id.tv_transcription)
         tvStatus             = view.findViewById(R.id.tv_status)
@@ -281,7 +286,7 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {
-        val chip = Chip(this)
+        val chip = Chip(themedCtx)
         chip.text = label
         chip.textSize = 13f
         chip.isEnabled = enabled
@@ -306,14 +311,14 @@ class VoiceImeService : InputMethodService() {
             selEnd.coerceIn(0, pendingText.length)
         )
 
-        val etTo = EditText(this).apply {
+        val etTo = EditText(themedCtx).apply {
             hint = "輸入替換詞（如：正確專有名詞）"
             setSingleLine()
         }
         val dp16 = (16 * resources.displayMetrics.density).toInt()
         etTo.setPadding(dp16, dp16, dp16, dp16)
 
-        AlertDialog.Builder(this, android.R.style.Theme_Material_Light_Dialog_Alert)
+        AlertDialog.Builder(themedCtx)
             .setTitle("新增替換詞")
             .setMessage("將「$selected」替換為：")
             .setView(etTo)
