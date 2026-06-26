@@ -6,12 +6,13 @@
     android:background="@color/ime_bg"
     android:paddingBottom="8dp">
 
-    <!-- Transcription preview bar -->
+    <!-- Transcription preview: long-press to select, then tap 套用詞彙 -->
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="@color/ime_preview_bg">
-        <TextView
+        android:background="@color/ime_preview_bg"
+        android:fillViewport="true">
+        <com.ping.voiceim.SelectableTextView
             android:id="@+id/tv_transcription"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
@@ -20,12 +21,12 @@
             android:paddingEnd="12dp"
             android:textSize="18sp"
             android:textColor="@color/ime_preview_text"
-            android:hint="語音識別結果將顯示於此…"
+            android:hint="長按選取詞彙可套用自定義替換"
             android:textColorHint="#888888"
             android:singleLine="true" />
     </HorizontalScrollView>
 
-    <!-- Status / RMS progress bar -->
+    <!-- RMS / indeterminate progress -->
     <ProgressBar
         android:id="@+id/progress_bar"
         style="@android:style/Widget.ProgressBar.Horizontal"
@@ -45,108 +46,186 @@
         android:textColor="@color/ime_status_text"
         android:text="點擊麥克風開始語音輸入" />
 
-    <!-- Main row: backspace | mic | enter -->
+    <!-- ── Normal controls ──────────────────────────────────────────────── -->
     <LinearLayout
+        android:id="@+id/layout_normal_controls"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/btn_backspace"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_backspace"
-            android:background="@drawable/key_bg"
-            android:contentDescription="退格"
-            android:scaleType="center" />
+        <!-- Main row: backspace | mic | enter -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
-        <Space android:layout_width="8dp" android:layout_height="0dp" />
+            <ImageButton
+                android:id="@+id/btn_backspace"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_backspace"
+                android:background="@drawable/key_bg"
+                android:contentDescription="退格"
+                android:scaleType="center" />
 
-        <ImageButton
-            android:id="@+id/btn_mic"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:src="@drawable/ic_mic"
-            android:background="@drawable/mic_bg"
-            android:contentDescription="語音輸入"
-            android:scaleType="centerInside"
-            android:padding="14dp"
-            android:elevation="4dp" />
+            <Space android:layout_width="8dp" android:layout_height="0dp" />
 
-        <Space android:layout_width="8dp" android:layout_height="0dp" />
+            <ImageButton
+                android:id="@+id/btn_mic"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_mic"
+                android:background="@drawable/mic_bg"
+                android:contentDescription="語音輸入"
+                android:scaleType="centerInside"
+                android:padding="14dp"
+                android:elevation="4dp" />
 
-        <ImageButton
-            android:id="@+id/btn_enter"
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_enter"
-            android:background="@drawable/key_bg"
-            android:contentDescription="確認/換行"
-            android:scaleType="center" />
+            <Space android:layout_width="8dp" android:layout_height="0dp" />
+
+            <ImageButton
+                android:id="@+id/btn_enter"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:src="@drawable/ic_enter"
+                android:background="@drawable/key_bg"
+                android:contentDescription="確認/換行"
+                android:scaleType="center" />
+        </LinearLayout>
+
+        <!-- Bottom action row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/btn_clear"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="清除"
+                android:textSize="14sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
+
+            <Space android:layout_width="6dp" android:layout_height="0dp" />
+
+            <TextView
+                android:id="@+id/btn_commit"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="2"
+                android:gravity="center"
+                android:text="確認插入"
+                android:textSize="14sp"
+                android:textColor="@color/ime_accent_text"
+                android:background="@drawable/commit_bg" />
+
+            <Space android:layout_width="6dp" android:layout_height="0dp" />
+
+            <TextView
+                android:id="@+id/btn_space"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="空格"
+                android:textSize="14sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
+
+            <Space android:layout_width="6dp" android:layout_height="0dp" />
+
+            <ImageButton
+                android:id="@+id/btn_settings"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_settings"
+                android:background="@drawable/key_bg"
+                android:contentDescription="詞彙設定"
+                android:scaleType="centerInside"
+                android:padding="6dp" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Bottom action row -->
+    <!-- ── Candidate panel (shown when text is selected) ──────────────── -->
     <LinearLayout
+        android:id="@+id/layout_candidates"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:gravity="center_vertical">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@color/ime_bg">
 
+        <!-- Selected text label -->
         <TextView
-            android:id="@+id/btn_clear"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="清除"
-            android:textSize="14sp"
-            android:textColor="@color/ime_key_text"
-            android:background="@drawable/key_bg" />
+            android:id="@+id/tv_selected_range"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textSize="12sp"
+            android:textColor="@color/ime_status_text"
+            android:singleLine="true" />
 
-        <Space android:layout_width="6dp" android:layout_height="0dp" />
+        <!-- Candidate chips -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+            <LinearLayout
+                android:id="@+id/ll_candidates"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_vertical" />
+        </HorizontalScrollView>
 
-        <TextView
-            android:id="@+id/btn_commit"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="2"
-            android:gravity="center"
-            android:text="確認插入"
-            android:textSize="14sp"
-            android:textColor="@color/ime_accent_text"
-            android:background="@drawable/commit_bg" />
+        <!-- Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:gravity="center_vertical">
 
-        <Space android:layout_width="6dp" android:layout_height="0dp" />
+            <TextView
+                android:id="@+id/btn_add_dict"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="新增替換詞"
+                android:textSize="13sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
 
-        <TextView
-            android:id="@+id/btn_space"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="空格"
-            android:textSize="14sp"
-            android:textColor="@color/ime_key_text"
-            android:background="@drawable/key_bg" />
+            <Space android:layout_width="6dp" android:layout_height="0dp" />
 
-        <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-        <ImageButton
-            android:id="@+id/btn_settings"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:src="@drawable/ic_settings"
-            android:background="@drawable/key_bg"
-            android:contentDescription="詞彙設定"
-            android:scaleType="centerInside"
-            android:padding="6dp" />
+            <TextView
+                android:id="@+id/btn_cancel_selection"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="取消選取"
+                android:textSize="13sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>
