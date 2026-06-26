@@ -76,7 +76,6 @@ class DictSettingsActivity : AppCompatActivity() {
         }
 
         inner class VH(view: View) : RecyclerView.ViewHolder(view) {
-            val tvFrom: TextView    = view.findViewById(R.id.tv_from)
             val tvTo: TextView      = view.findViewById(R.id.tv_to)
             val btnDel: ImageButton = view.findViewById(R.id.btn_delete)
         }
@@ -88,8 +87,7 @@ class DictSettingsActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val (from, to) = items[position]
-            holder.tvFrom.text = from
-            holder.tvTo.text   = to
+            holder.tvTo.text = to
             holder.btnDel.setOnClickListener { onDelete(from) }
         }
     }
