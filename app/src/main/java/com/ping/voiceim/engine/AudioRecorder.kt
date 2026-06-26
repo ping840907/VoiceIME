@@ -1,4 +1,4 @@
-package com.ping.elderlyassistant.engine
+package com.ping.voiceim.engine
 
 import android.annotation.SuppressLint
 import android.media.AudioFormat
@@ -11,27 +11,13 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlin.math.sqrt
 
-/**
- * Microphone capture utility.
- *
- * Records 16 kHz mono PCM-16 audio and converts it to a float32 array
- * normalised to [-1, 1], which is exactly what Whisper expects.
- *
- * VAD (Voice Activity Detection) stops recording automatically when the
- * signal RMS falls below [ModelConfig.VAD_SILENCE_THRESHOLD] for
- * [ModelConfig.VAD_SILENCE_SECONDS] consecutive seconds.
- *
- * Requires: android.permission.RECORD_AUDIO
- */
 class AudioRecorder {
 
     companion object {
-        private const val TAG = "AudioRecorder"
+        private const val TAG          = "AudioRecorder"
         private const val SAMPLE_RATE  = ModelConfig.ASR_SAMPLE_RATE
         private const val CHANNEL_CFG  = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-
-        // Chunk size: 64 ms → 1024 samples at 16 kHz
         private const val CHUNK_FRAMES = 1024
     }
 
@@ -40,28 +26,25 @@ class AudioRecorder {
     data class Recording(
         val samples: FloatArray,
         val durationSeconds: Float,
-        val stopReason: StopReason
+        val stopReason: StopReason,
     )
 
     @Volatile private var shouldStop = false
 
-    /**
-     * Start recording and return when silence is detected or limits are reached.
-     * Must be called from a coroutine (suspends on Dispatchers.IO).
-     */
     @SuppressLint("MissingPermission")
     suspend fun recordUntilSilence(
-        maxSeconds: Float        = ModelConfig.MAX_RECORD_SECONDS,
-        silenceSeconds: Float    = ModelConfig.VAD_SILENCE_SECONDS,
-        minSeconds: Float        = ModelConfig.MIN_RECORD_SECONDS,
-        silenceThreshold: Float  = ModelConfig.VAD_SILENCE_THRESHOLD
+        maxSeconds:       Float = ModelConfig.MAX_RECORD_SECONDS,
+        silenceSeconds:   Float = ModelConfig.VAD_SILENCE_SECONDS,
+        minSeconds:       Float = ModelConfig.MIN_RECORD_SECONDS,
+        silenceThreshold: Float = ModelConfig.VAD_SILENCE_THRESHOLD,
+        onRmsUpdate: ((Float) -> Unit)? = null,
     ): Recording = withContext(Dispatchers.IO) {
 
         shouldStop = false
 
         val bufSize = maxOf(
             AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CFG, AUDIO_FORMAT),
-            CHUNK_FRAMES * 2   // bytes (2 bytes per 16-bit sample)
+            CHUNK_FRAMES * 2
         )
 
         val recorder = AudioRecord(
@@ -71,7 +54,7 @@ class AudioRecorder {
 
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             Log.e(TAG, "AudioRecord init failed")
-            recorder.release()   // must release even on failed init to free kernel buffer
+            recorder.release()
             return@withContext Recording(FloatArray(0), 0f, StopReason.ERROR)
         }
 
@@ -87,47 +70,34 @@ class AudioRecorder {
 
         try {
             recorder.startRecording()
-            Log.i(TAG, "Recording started (max ${maxSeconds}s)")
-
             while (coroutineContext.isActive && !shouldStop) {
                 val read = recorder.read(chunkBuffer, 0, CHUNK_FRAMES)
                 if (read <= 0) continue
 
-                val copyCount = minOf(read, maxFrames - sampleCount)
-                System.arraycopy(chunkBuffer, 0, allSamples, sampleCount, copyCount)
-                sampleCount += copyCount
+                val copy = minOf(read, maxFrames - sampleCount)
+                System.arraycopy(chunkBuffer, 0, allSamples, sampleCount, copy)
+                sampleCount += copy
 
                 val rms = computeRms(chunkBuffer, read)
-                val isSilent = rms < silenceThreshold
+                onRmsUpdate?.invoke(rms)
 
-                if (isSilent) silenceCount += read else silenceCount = 0
+                if (rms < silenceThreshold) silenceCount += read else silenceCount = 0
 
-                val totalFrames = sampleCount
-                if (totalFrames >= maxFrames) {
-                    stopReason = StopReason.TIMEOUT; break
-                }
-                if (totalFrames >= minFrames && silenceCount >= silenceFrames) {
+                if (sampleCount >= maxFrames) { stopReason = StopReason.TIMEOUT; break }
+                if (sampleCount >= minFrames && silenceCount >= silenceFrames) {
                     stopReason = StopReason.SILENCE; break
                 }
             }
-
             if (shouldStop) stopReason = StopReason.MANUAL
-
         } finally {
             recorder.stop()
             recorder.release()
         }
 
-        val floatSamples = convertToFloat(allSamples, sampleCount)
-        val durationSec  = sampleCount.toFloat() / SAMPLE_RATE
-        Log.i(TAG, "Recording stopped (${durationSec.format()}s, $stopReason, $sampleCount samples)")
-        Recording(floatSamples, durationSec, stopReason)
+        Recording(convertToFloat(allSamples, sampleCount), sampleCount.toFloat() / SAMPLE_RATE, stopReason)
     }
 
-    /** Signal to stop recording early (e.g., user releases button). */
     fun stopEarly() { shouldStop = true }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun computeRms(buf: ShortArray, len: Int): Float {
         var sum = 0.0
@@ -135,11 +105,5 @@ class AudioRecorder {
         return sqrt(sum / len).toFloat()
     }
 
-    private fun convertToFloat(shorts: ShortArray, count: Int): FloatArray {
-        val out = FloatArray(count)
-        for (i in 0 until count) out[i] = shorts[i] / 32768.0f
-        return out
-    }
-
-    private fun Float.format() = "%.2f".format(this)
+    private fun convertToFloat(shorts: ShortArray, count: Int) = FloatArray(count) { shorts[it] / 32768.0f }
 }

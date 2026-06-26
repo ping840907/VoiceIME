@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="blue_700">#1976D2</color>
-    <color name="blue_800">#1565C0</color>
-    <color name="blue_900">#0D47A1</color>
-    <color name="teal_200">#80CBC4</color>
     <color name="white">#FFFFFF</color>
-    <color name="white_70">#B3FFFFFF</color>
-    <color name="bubble_bg">#1976D2</color>
-    <color name="bubble_bg_active">#D32F2F</color>
-    <color name="panel_bg">#CC1565C0</color>
-    <color name="permission_granted">#388E3C</color>
-    <color name="permission_missing">#F57C00</color>
+    <color name="background">#F5F5F5</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+
+    <!-- IME keyboard colors -->
+    <color name="ime_bg">#263238</color>
+    <color name="ime_key_bg">#37474F</color>
+    <color name="ime_key_icon">#ECEFF1</color>
+    <color name="ime_key_text">#ECEFF1</color>
+    <color name="ime_accent">#29B6F6</color>
+    <color name="ime_accent_text">#FFFFFF</color>
+    <color name="ime_preview_bg">#1C272C</color>
+    <color name="ime_preview_text">#FFFFFF</color>
+    <color name="ime_status_text">#B0BEC5</color>
 </resources>

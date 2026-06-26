@@ -4,17 +4,16 @@ plugins {
 }
 
 android {
-    namespace 'com.ping.elderlyassistant'
+    namespace 'com.ping.voiceim'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ping.elderlyassistant"
+        applicationId "com.ping.voiceim"
         minSdk 26
-        targetSdk 33
-        versionCode 2
-        versionName "2.0.0"
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
 
-        // sherpa-onnx ships arm64-v8a prebuilt .so; other ABIs not needed for POCO F6
         ndk { abiFilters 'arm64-v8a' }
     }
 
@@ -41,30 +40,12 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-
-    // Coroutines: all heavy work (recording, ASR, LLM) runs on Dispatchers.IO
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
-    // ── SenseVoice ASR via sherpa-onnx ───────────────────────────────────────
-    // sherpa-onnx does NOT publish to Maven Central; AAR must be downloaded manually.
-    // 1. Go to https://github.com/k2-fsa/sherpa-onnx/releases
-    // 2. Download sherpa-onnx-<version>.aar  (NOT the -rknn or -static-link variants)
-    // 3. Drop it into app/libs/
-    // 4. Update the name below to match (e.g. sherpa-onnx-1.13.3)
+    // Qwen3 ASR via sherpa-onnx AAR (drop sherpa-onnx-<version>.aar into app/libs/)
     implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 
-    // ── OpenCC4j — Simplified → Traditional Chinese post-processing ──────────
-    // Pure-Java OpenCC wrapper; no JNI, no extra repo needed (Maven Central).
+    // OpenCC — Simplified → Traditional Chinese
     implementation 'com.github.houbb:opencc4j:1.8.1'
-
-    // ── LiteRT LM for Gemma 4 E2B ────────────────────────────────────────────
-    // Available on google() / Maven Central — no extra repository needed.
-    // 0.12.0: fixes GPU compiled model executor failure on ARM (Mali-G710 / Pixel 7).
-    // Model file: gemma-4-E2B-it.litertlm
-    // Source: https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm
-    implementation 'com.google.ai.edge.litertlm:litertlm-android:0.12.0'
 }
