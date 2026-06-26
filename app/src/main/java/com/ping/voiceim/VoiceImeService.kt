@@ -170,7 +170,7 @@ class VoiceImeService : InputMethodService() {
 
     private fun clearPending() {
         pendingText = ""
-        tvTranscription.text = ""
+        if (::tvTranscription.isInitialized) tvTranscription.text = ""
     }
 
     private fun commitText(text: String) {
