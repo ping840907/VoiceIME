@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="識別後自動將「原文」替換為「替換詞」，可用於修正專有名詞或語音誤識。"
+        android:textSize="13sp"
+        android:textColor="@color/text_secondary"
+        android:padding="16dp"
+        android:lineSpacingMultiplier="1.4" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_dict"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/btn_add_entry"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="＋ 新增詞彙"
+        android:layout_margin="12dp" />
+
+</LinearLayout>

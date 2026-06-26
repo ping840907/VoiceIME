@@ -41,6 +41,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // Qwen3 ASR via sherpa-onnx AAR (drop sherpa-onnx-<version>.aar into app/libs/)

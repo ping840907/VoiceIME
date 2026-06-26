@@ -22,6 +22,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Dictionary settings -->
+        <activity
+            android:name=".DictSettingsActivity"
+            android:exported="false"
+            android:label="自定義詞彙" />
+
         <!-- Voice IME service -->
         <service
             android:name=".VoiceImeService"

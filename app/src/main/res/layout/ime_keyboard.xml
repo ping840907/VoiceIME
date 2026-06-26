@@ -135,6 +135,18 @@
             android:textSize="14sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
+
+        <Space android:layout_width="6dp" android:layout_height="0dp" />
+
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/key_bg"
+            android:contentDescription="詞彙設定"
+            android:scaleType="centerInside"
+            android:padding="6dp" />
     </LinearLayout>
 
 </LinearLayout>
