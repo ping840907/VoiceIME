@@ -179,19 +179,23 @@
             android:textColor="@color/ime_status_text"
             android:singleLine="true" />
 
-        <!-- Candidate chips -->
-        <HorizontalScrollView
+        <!-- Candidate chips — wraps to multiple lines -->
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="wrap_content"
+            android:maxHeight="96dp"
             android:paddingStart="8dp"
-            android:paddingEnd="8dp">
-            <LinearLayout
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+            <com.google.android.material.chip.ChipGroup
                 android:id="@+id/ll_candidates"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical" />
-        </HorizontalScrollView>
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingVertical="2dp"
+                xmlns:app="http://schemas.android.com/apk/res-auto" />
+        </ScrollView>
 
         <!-- Actions -->
         <LinearLayout

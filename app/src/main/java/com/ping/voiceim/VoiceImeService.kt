@@ -12,7 +12,6 @@ import android.text.Spanned
 import android.text.style.BackgroundColorSpan
 import android.util.Log
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
@@ -22,6 +21,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.github.houbb.opencc4j.util.ZhConverterUtil
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.ping.voiceim.engine.AudioRecorder
 import com.ping.voiceim.engine.Qwen3AsrEngine
 import kotlinx.coroutines.CoroutineScope
@@ -63,7 +64,7 @@ class VoiceImeService : InputMethodService() {
     private lateinit var layoutNormalControls: LinearLayout
     private lateinit var layoutCandidates: LinearLayout
     private lateinit var tvSelectedRange: TextView
-    private lateinit var llCandidates: LinearLayout
+    private lateinit var llCandidates: ChipGroup
     private lateinit var btnAddDict: TextView
     private lateinit var btnCancelSelection: TextView
 
@@ -249,13 +250,13 @@ class VoiceImeService : InputMethodService() {
         llCandidates.removeAllViews()
         val dict = UserDictionary.load(this)
         if (dict.isEmpty()) {
-            val hint = makeChip("（詞典為空，請新增）", enabled = false)
-            llCandidates.addView(hint)
+            llCandidates.addView(makeChip("（詞典為空，請新增）", enabled = false))
         } else {
             dict.entries.sortedBy { it.key }.forEach { (_, to) ->
-                val chip = makeChip(to)
-                chip.setOnClickListener { applyCandidate(selected, to) }
-                llCandidates.addView(chip)
+                makeChip(to).also { chip ->
+                    chip.setOnClickListener { applyCandidate(selected, to) }
+                    llCandidates.addView(chip)
+                }
             }
         }
 
@@ -279,23 +280,22 @@ class VoiceImeService : InputMethodService() {
         if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
     }
 
-    private fun makeChip(label: String, enabled: Boolean = true): TextView {
-        val chip = TextView(this)
+    private fun makeChip(label: String, enabled: Boolean = true): Chip {
+        val chip = Chip(this)
         chip.text = label
-        chip.textSize = 14f
-        chip.setTextColor(0xFFFFFFFF.toInt())
+        chip.textSize = 13f
         chip.isEnabled = enabled
         chip.alpha = if (enabled) 1f else 0.5f
-        chip.background = ContextCompat.getDrawable(this, R.drawable.chip_bg)
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val dp16 = dp8 * 2
-        chip.setPadding(dp16, dp8 / 2, dp16, dp8 / 2)
-        val lp = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+        chip.isClickable = enabled
+        chip.isCheckable = false
+        chip.chipBackgroundColor = android.content.res.ColorStateList.valueOf(
+            ContextCompat.getColor(this, R.color.ime_accent)
         )
-        lp.marginEnd = dp8
-        chip.layoutParams = lp
+        chip.setTextColor(ContextCompat.getColor(this, R.color.ime_accent_text))
+        chip.chipMinHeight = (32 * resources.displayMetrics.density)
+        chip.chipStartPadding = (8 * resources.displayMetrics.density)
+        chip.chipEndPadding   = (8 * resources.displayMetrics.density)
+        chip.closeIconVisible = false
         return chip
     }
 
