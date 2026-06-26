@@ -1,6 +1,7 @@
 package com.ping.elderlyassistant.engine
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
@@ -8,6 +9,7 @@ import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.LogSeverity
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
@@ -19,11 +21,15 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * [LlmEngine] backed by Google LiteRT LM (litertlm-android:0.11.0).
+ * [LlmEngine] backed by Google LiteRT LM (litertlm-android:0.12.0).
  *
- * Backend priority: NPU (QNN) → GPU (OpenCL) → CPU
- *   cacheDir = null  — LiteRT LM manages its own GPU kernel cache internally;
- *   passing an explicit path can cause permission failures on external storage.
+ * Backend priority:
+ *   Qualcomm / MediaTek: NPU → GPU → CPU
+ *   Google Tensor (Pixel):  GPU → CPU  (Tensor NPU requires an AOT model variant)
+ *   Unknown:                GPU → CPU
+ *
+ *   cacheDir = null — let LiteRT LM manage its own shader cache; passing an
+ *   explicit app-cache path triggers permission failures on some builds.
  *   SamplerConfig = null for NPU (required by LiteRT LM).
  */
 class GemmaEngine(private val context: Context) : LlmEngine {
@@ -42,37 +48,59 @@ class GemmaEngine(private val context: Context) : LlmEngine {
     override suspend fun load(): LlmEngine.LoadResult = withContext(Dispatchers.IO) {
         if (_loaded) return@withContext LlmEngine.LoadResult(success = true)
 
+        Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
+
         val modelPath    = ModelConfig.gemmaModelPath(context)
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
-        // Internal cache for GPU compiled shaders — always writable, no extra permissions needed.
-        val shaderCacheDir = context.cacheDir.absolutePath
 
-        // GPU uses a smaller context to stay within GPU memory limits;
-        // it is paired with SYSTEM_INSTRUCTION_COMPACT + MAX_NODES_LLM_GPU in generate().
-        val backends = listOf(
-            Triple("NPU", { Backend.NPU(nativeLibDir) }, ModelConfig.LLM_MAX_CONTEXT_TOKENS),
-            Triple("GPU", { Backend.GPU() },             ModelConfig.LLM_MAX_CONTEXT_TOKENS_GPU),
-            Triple("CPU", { Backend.CPU() },             ModelConfig.LLM_MAX_CONTEXT_TOKENS),
-        )
+        // Detect SoC family so we can skip NPU on Google Tensor devices:
+        // Tensor NPU requires a separately compiled AOT model; the standard
+        // .litertlm file only contains GPU/CPU delegates.
+        val socMfr   = Build.SOC_MANUFACTURER.lowercase()
+        val socModel = Build.SOC_MODEL.lowercase()
+        val brand    = Build.BRAND.lowercase()
+        val isGoogleTensor = brand == "google" || socMfr.contains("google") ||
+                socModel.startsWith("gs") || socModel.startsWith("zuma") ||
+                socModel == "tango" || socModel == "rio"
+        val isQualcomm  = socMfr.contains("qualcomm")
+        val isMediaTek  = socMfr.contains("mediatek")
+        Log.i(TAG, "SoC: mfr=$socMfr model=$socModel brand=$brand " +
+                "(tensor=$isGoogleTensor qualcomm=$isQualcomm mediatek=$isMediaTek)")
+
+        // cacheDir = null: let LiteRT LM use its own default shader cache location.
+        // Passing an explicit app-cache path has caused permission failures on some builds.
+        // visionBackend: required by EngineConfig in litertlm 0.12.0. We don't send images,
+        // but the param must be provided. CPU is used as a no-op fallback for vision.
+        data class BackendSpec(val name: String, val compute: Backend, val vision: Backend, val context_tokens: Int)
+
+        val candidates = mutableListOf<BackendSpec>()
+        if (isQualcomm || isMediaTek) {
+            candidates += BackendSpec("NPU", Backend.NPU(nativeLibDir), Backend.CPU(), ModelConfig.LLM_MAX_CONTEXT_TOKENS)
+        } else if (isGoogleTensor) {
+            Log.i(TAG, "Google Tensor NPU requires AOT model — skipping NPU, trying GPU")
+        }
+        candidates += BackendSpec("GPU", Backend.GPU(), Backend.GPU(), ModelConfig.LLM_MAX_CONTEXT_TOKENS)
+        candidates += BackendSpec("CPU", Backend.CPU(), Backend.CPU(), ModelConfig.LLM_MAX_CONTEXT_TOKENS)
 
         var lastError: Exception? = null
-        for ((name, backendFactory, maxTokens) in backends) {
+        for (spec in candidates) {
             try {
                 val config = EngineConfig(
-                    modelPath    = modelPath,
-                    backend      = backendFactory(),
-                    maxNumTokens = maxTokens,
-                    cacheDir     = shaderCacheDir,
+                    modelPath     = modelPath,
+                    backend       = spec.compute,
+                    visionBackend = spec.vision,
+                    maxNumTokens  = spec.context_tokens,
+                    cacheDir      = null,
                 )
                 val e = Engine(config)
                 e.initialize()
                 engine         = e
-                _activeBackend = name
+                _activeBackend = spec.name
                 _loaded        = true
-                Log.i(TAG, "Gemma 4 E2B loaded  backend='$name'  model=$modelPath")
+                Log.i(TAG, "Gemma 4 E2B loaded  backend='${spec.name}'  model=$modelPath")
                 return@withContext LlmEngine.LoadResult(success = true)
             } catch (ex: Exception) {
-                Log.w(TAG, "Backend '$name' failed (${ex.javaClass.simpleName}): ${ex.message}")
+                Log.w(TAG, "Backend '${spec.name}' failed (${ex.javaClass.simpleName}): ${ex.message}")
                 lastError = ex
             }
         }
@@ -114,7 +142,7 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                     topP        = ModelConfig.LLM_TOP_P,
                     temperature = temperature.toDouble(),
                 ),
-                // GPU uses the compact instruction to stay within the 1024-token KV cache.
+                // GPU uses the compact instruction to leave more KV-cache budget for output.
                 systemInstruction = Contents.of(mutableListOf(Content.Text(
                     if (_activeBackend == "GPU") PromptBuilder.SYSTEM_INSTRUCTION_COMPACT
                     else PromptBuilder.SYSTEM_INSTRUCTION

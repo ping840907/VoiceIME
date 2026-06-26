@@ -94,14 +94,7 @@ object ModelConfig {
      */
     const val LLM_MAX_CONTEXT_TOKENS = 2048
 
-    /**
-     * KV-cache context window for the GPU backend.
-     * Paired with SYSTEM_INSTRUCTION_COMPACT (~230 tokens) and MAX_NODES_LLM_GPU (20 nodes).
-     * 230 + 20×22 + 20 (instruction) ≈ 690 tokens prompt → ~334 tokens for output.
-     */
-    const val LLM_MAX_CONTEXT_TOKENS_GPU = 1024
-
-    /** Max LLM-prompt nodes when running on GPU (keeps total prompt ≤ ~690 tokens). */
+    /** Max LLM-prompt nodes when running on GPU (fewer nodes → more output budget). */
     const val MAX_NODES_LLM_GPU = 20
 
     /** Max new tokens for the generate() interface (unused by LiteRT LM directly). */
