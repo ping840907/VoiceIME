@@ -9,7 +9,7 @@ import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import com.houbb.opencc4j.util.ZhConverterUtil
+import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.ping.voiceim.engine.AudioRecorder
 import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.Qwen3AsrEngine
