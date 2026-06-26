@@ -66,11 +66,17 @@ class PipelineOrchestrator(private val context: Context) {
             val actionJson: String?,
             val llmStats: LlmEngine.InferenceStats?
         ) : State()
+        /** Model responded with plain text instead of a JSON action. */
+        data class Reply(val text: String) : State()
         data class Error(val message: String) : State()
     }
 
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state
+
+    @Volatile private var _llmBackend = ""
+    /** Returns the active LLM hardware backend ("NPU" / "GPU" / "CPU"), or "" if not yet loaded. */
+    fun llmBackend(): String = _llmBackend
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var pipelineJob: Job? = null
@@ -88,8 +94,10 @@ class PipelineOrchestrator(private val context: Context) {
 
             _state.value = State.ModelLoading("準備中（2／2）：AI 模型，首次約需 30–60 秒…")
             val llmResult = llm.load()
-            if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")
-            else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
+            if (llmResult.success) {
+                _llmBackend = llm.activeBackend()
+                Log.i(TAG, "Gemma 4 E2B ready ✓  backend=$_llmBackend")
+            } else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
 
             // Pre-warm OpenCC dictionary so first transcription doesn't pay the load cost.
             runCatching { ZhConverterUtil.toTraditional("预热") }
@@ -186,6 +194,7 @@ class PipelineOrchestrator(private val context: Context) {
         var lastJson:  String?                   = null
         var lastStats: LlmEngine.InferenceStats? = null
         var finalError: String?                  = null
+        var finalReply: String?                  = null
 
         val completed = AutomationGuard.withGuard {
             for (step in 0 until AutomationGuard.MAX_STEPS) {
@@ -203,8 +212,10 @@ class PipelineOrchestrator(private val context: Context) {
 
                 val json = extractJson(rawResponse)
                 if (json == null) {
-                    Log.e(TAG, "JSON extraction failed. Full raw response: $rawResponse")
-                    finalError = "請換個說法重試，助理未能理解這個指令"
+                    val reply = rawResponse.trim()
+                    Log.i(TAG, "No JSON in response — treating as text reply. reply=${reply.take(80)}")
+                    if (reply.isNotBlank()) finalReply = reply
+                    else finalError = "助理沒有回應，請重試"
                     break
                 }
                 lastJson = json
@@ -229,9 +240,10 @@ class PipelineOrchestrator(private val context: Context) {
         }
 
         when {
-            completed == null  -> emitTerminal(State.Error("操作時間過長，已自動停止，請再試一次"))
-            finalError != null -> emitTerminal(State.Error(finalError!!))
-            else               -> emitTerminal(State.Done(transcript, lastJson, lastStats))
+            completed == null   -> emitTerminal(State.Error("操作時間過長，已自動停止，請再試一次"))
+            finalError != null  -> emitTerminal(State.Error(finalError!!))
+            finalReply != null  -> emitTerminal(State.Reply(finalReply!!))
+            else                -> emitTerminal(State.Done(transcript, lastJson, lastStats))
         }
     }
 
@@ -248,7 +260,7 @@ class PipelineOrchestrator(private val context: Context) {
         _state.value = s
         scope.launch {
             delay(3_500)
-            if (_state.value is State.Done || _state.value is State.Error)
+            if (_state.value is State.Done || _state.value is State.Error || _state.value is State.Reply)
                 _state.value = State.Idle
         }
     }

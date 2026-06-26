@@ -145,7 +145,11 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
                     is PipelineOrchestrator.State.Idle -> {
                         blockingOverlay.hide()
-                        updatePanel(getString(R.string.bubble_tap_hint), listening = false)
+                        val backend = pipeline.llmBackend()
+                        val hint = if (backend.isNotBlank())
+                            "${getString(R.string.bubble_tap_hint)} · $backend"
+                        else getString(R.string.bubble_tap_hint)
+                        updatePanel(hint, listening = false)
                     }
 
                     is PipelineOrchestrator.State.Recording ->
@@ -172,6 +176,13 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                     is PipelineOrchestrator.State.Done -> {
                         blockingOverlay.hide()
                         updatePanel("完成「${state.transcript}」", listening = false)
+                    }
+
+                    is PipelineOrchestrator.State.Reply -> {
+                        blockingOverlay.hide()
+                        val display = if (state.text.length > 100) state.text.take(100) + "…"
+                                      else state.text
+                        updatePanel(display, listening = false)
                     }
 
                     is PipelineOrchestrator.State.Error -> {
@@ -369,12 +380,21 @@ class FloatingBubbleService : Service(), LifecycleOwner {
             when (val s = pipeline.state.value) {
                 is PipelineOrchestrator.State.ModelLoading ->
                     updatePanel(s.message, listening = false)
-                is PipelineOrchestrator.State.Idle ->
-                    updatePanel(getString(R.string.bubble_tap_hint), listening = false)
+                is PipelineOrchestrator.State.Idle -> {
+                    val backend = pipeline.llmBackend()
+                    val hint = if (backend.isNotBlank())
+                        "${getString(R.string.bubble_tap_hint)} · $backend"
+                    else getString(R.string.bubble_tap_hint)
+                    updatePanel(hint, listening = false)
+                }
                 is PipelineOrchestrator.State.Recording ->
                     updatePanel(getString(R.string.bubble_listening), listening = true)
                 is PipelineOrchestrator.State.Transcribing ->
                     updatePanel(getString(R.string.bubble_transcribing), listening = false)
+                is PipelineOrchestrator.State.Reply -> {
+                    val display = if (s.text.length > 100) s.text.take(100) + "…" else s.text
+                    updatePanel(display, listening = false)
+                }
                 else -> { /* Thinking/Executing: BlockingOverlay takes over; Done/Error: transition imminent */ }
             }
         } catch (ex: Exception) {

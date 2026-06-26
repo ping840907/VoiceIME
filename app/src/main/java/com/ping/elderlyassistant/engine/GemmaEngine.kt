@@ -159,4 +159,6 @@ class GemmaEngine(private val context: Context) : LlmEngine {
     }
 
     override fun lastStats(): LlmEngine.InferenceStats = _stats
+
+    override fun activeBackend(): String = _activeBackend
 }

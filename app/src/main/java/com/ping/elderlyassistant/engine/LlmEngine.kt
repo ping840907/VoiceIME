@@ -43,6 +43,9 @@ interface LlmEngine {
 
     fun lastStats(): InferenceStats
 
+    /** Returns the hardware backend currently active (e.g. "NPU", "GPU", "CPU"). */
+    fun activeBackend(): String = ""
+
     // ── Data classes ──────────────────────────────────────────────────────────
 
     data class LoadResult(

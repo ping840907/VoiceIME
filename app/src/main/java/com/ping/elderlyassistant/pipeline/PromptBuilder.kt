@@ -120,9 +120,12 @@ object PromptBuilder {
     // ── System instruction (injected via ConversationConfig.systemInstruction()) ─
     val SYSTEM_INSTRUCTION = buildString {
         appendLine("你是一位 Android 手機操作助理，服務台灣用戶。")
-        appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解並執行任務。")
-        appendLine("根據「使用者指令」和「畫面節點」，決定下一個動作並輸出一個 JSON 物件。")
-        appendLine("規則：只輸出 JSON，不加任何說明，不用 Markdown 包裝。")
+        appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解。")
+        appendLine()
+        appendLine("根據「使用者指令」和「畫面節點」選擇回應方式：")
+        appendLine("• 能在畫面上執行操作 → 直接輸出一個 JSON 動作，不加任何其他文字")
+        appendLine("• 無法執行或需要說明 → 用繁體中文簡短回覆（不超過 50 字）")
+        appendLine("優先直接動手操作，只在確實無法執行時才以文字回覆。")
         appendLine()
         appendLine(ACTION_SCHEMA)
         appendLine()
@@ -157,12 +160,10 @@ object PromptBuilder {
 
         append("## 使用者指令\n$instruction\n\n")
         if (nodeTree.isNotBlank()) {
-            append("## 當前畫面節點\n$nodeTree\n\n")
+            append("## 當前畫面節點\n$nodeTree")
         } else {
-            append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)\n\n")
+            append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)")
         }
-        // "輸出：" matches the few-shot suffix exactly, priming the model to complete with JSON.
-        append("輸出：")
     }
 
 }
