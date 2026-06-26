@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+app/build/
+local.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+*.DS_Store
+
+# Keystore files
+*.jks
+*.keystore
+
+# Model files (large binaries — users download separately)
+app/src/main/assets/models/
