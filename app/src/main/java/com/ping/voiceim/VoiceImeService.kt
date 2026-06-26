@@ -274,9 +274,9 @@ class VoiceImeService : InputMethodService() {
 
     private fun collapseSelection() {
         selStart = 0; selEnd = 0
+        if (!::layoutCandidates.isInitialized) return
         layoutCandidates.visibility     = View.GONE
         layoutNormalControls.visibility = View.VISIBLE
-        // Re-draw without highlight
         if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
     }
 
