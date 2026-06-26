@@ -121,23 +121,8 @@ object PromptBuilder {
     val SYSTEM_INSTRUCTION = buildString {
         appendLine("你是一位 Android 手機操作助理，服務台灣用戶。")
         appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解並執行任務。")
-        appendLine("根據「使用者指令」和「畫面節點」，決定下一個動作並輸出對應 JSON。")
-        appendLine()
-        appendLine("## 輸出格式（最高優先規則，不得違反）")
-        appendLine("1. 整個回應只有一個 JSON 物件，不含任何其他文字。")
-        appendLine("2. 不可使用 Markdown 包裝（禁止 ```json、```、--- 等符號）。")
-        appendLine("3. 不可在 JSON 前後加說明、標題、序號或任何前綴。")
-        appendLine("4. 不可輸出多個 JSON 或陣列。")
-        appendLine()
-        appendLine("【錯誤示範 — 絕對不能這樣輸出】")
-        appendLine("  ✗ ```json")
-        appendLine("    {\"action\":\"click\",\"id\":\"btn\"}")
-        appendLine("    ```")
-        appendLine("  ✗ 根據畫面，我將執行：{\"action\":\"click\",\"id\":\"btn\"}")
-        appendLine("  ✗ 動作：{\"action\":\"click\",\"id\":\"btn\"}")
-        appendLine()
-        appendLine("【正確示範 — 唯一合法的輸出格式】")
-        appendLine("  ✓ {\"action\":\"click\",\"id\":\"btn\"}")
+        appendLine("根據「使用者指令」和「畫面節點」，決定下一個動作並輸出一個 JSON 物件。")
+        appendLine("規則：只輸出 JSON，不加任何說明，不用 Markdown 包裝。")
         appendLine()
         appendLine(ACTION_SCHEMA)
         appendLine()
@@ -176,8 +161,8 @@ object PromptBuilder {
         } else {
             append("## 當前畫面節點\n(無法取得 — 無障礙服務可能未連線)\n\n")
         }
-        // Completion primer: model continues directly with the JSON object.
-        append("JSON：")
+        // "輸出：" matches the few-shot suffix exactly, priming the model to complete with JSON.
+        append("輸出：")
     }
 
 }
