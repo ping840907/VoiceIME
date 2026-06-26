@@ -87,14 +87,25 @@ object ModelConfig {
      */
     const val GEMMA_MODEL_FILE = "gemma-4-E2B-it.litertlm"
 
-    /** Max new tokens per generation — 256 is ample for a JSON action object. */
+    /**
+     * Total KV-cache context window in tokens (prompt + generated output combined).
+     * This is EngineConfig.maxNumTokens — NOT just the max new tokens.
+     * Our system prompt + few-shot examples + user message ≈ 600–800 tokens;
+     * 1024 matches the edge-gallery default and leaves ~200 tokens for output.
+     */
+    const val LLM_MAX_CONTEXT_TOKENS = 1024
+
+    /** Max new tokens for the generate() interface (unused by LiteRT LM directly). */
     const val LLM_MAX_NEW_TOKENS = 256
 
-    /** Very low temperature → near-deterministic JSON output. */
-    const val LLM_TEMPERATURE = 0.05f
+    /** Low temperature → near-deterministic JSON / short text output. */
+    const val LLM_TEMPERATURE = 0.1f
 
-    /** Top-K sampling — 40 is Google's recommended default for Gemma. */
-    const val LLM_TOP_K = 40
+    /** Top-K sampling — 64 matches edge-gallery default for Gemma. */
+    const val LLM_TOP_K = 64
+
+    /** Top-P nucleus sampling — 0.95 matches edge-gallery default. */
+    const val LLM_TOP_P = 0.95
 
     // ── Recording / VAD ──────────────────────────────────────────────────────
     const val MAX_RECORD_SECONDS    = 10f

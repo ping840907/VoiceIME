@@ -21,14 +21,10 @@ import kotlin.coroutines.resumeWithException
 /**
  * [LlmEngine] backed by Google LiteRT LM (litertlm-android:0.11.0).
  *
- * Dependency: com.google.ai.edge.litertlm:litertlm-android:0.11.0
- * Coordinates sourced from google-ai-edge/gallery libs.versions.toml.
- *
- * Model: Gemma 4 E2B  (gemma4-e2b-it-int4.task — ~1.3 GB)
- * Placement: /sdcard/Android/data/com.ping.elderlyassistant[.debug]/files/models/
- *
- * Backend priority: NPU (QNN) → GPU → CPU
- * Note: SamplerConfig is passed as null for NPU per LiteRT LM requirement.
+ * Backend priority: NPU (QNN) → GPU (OpenCL) → CPU
+ *   cacheDir = null  — LiteRT LM manages its own GPU kernel cache internally;
+ *   passing an explicit path can cause permission failures on external storage.
+ *   SamplerConfig = null for NPU (required by LiteRT LM).
  */
 class GemmaEngine(private val context: Context) : LlmEngine {
 
@@ -47,7 +43,6 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         if (_loaded) return@withContext LlmEngine.LoadResult(success = true)
 
         val modelPath    = ModelConfig.gemmaModelPath(context)
-        val cacheDir     = (context.externalCacheDir ?: context.cacheDir).absolutePath
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
 
         val backends = listOf<Pair<String, () -> Backend>>(
@@ -62,8 +57,8 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                 val config = EngineConfig(
                     modelPath    = modelPath,
                     backend      = backendFactory(),
-                    maxNumTokens = ModelConfig.LLM_MAX_NEW_TOKENS,
-                    cacheDir     = cacheDir,
+                    maxNumTokens = ModelConfig.LLM_MAX_CONTEXT_TOKENS,
+                    cacheDir     = null,   // let LiteRT LM manage its own kernel cache
                 )
                 val e = Engine(config)
                 e.initialize()
@@ -73,7 +68,7 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                 Log.i(TAG, "Gemma 4 E2B loaded  backend='$name'  model=$modelPath")
                 return@withContext LlmEngine.LoadResult(success = true)
             } catch (ex: Exception) {
-                Log.w(TAG, "Backend '$name' failed: ${ex.message}")
+                Log.w(TAG, "Backend '$name' failed (${ex.javaClass.simpleName}): ${ex.message}")
                 lastError = ex
             }
         }
@@ -107,10 +102,10 @@ class GemmaEngine(private val context: Context) : LlmEngine {
 
         try {
             val convConfig = ConversationConfig(
-                // SamplerConfig must be null when using NPU backend
+                // SamplerConfig must be null for NPU backend (LiteRT LM requirement)
                 samplerConfig = if (_activeBackend == "NPU") null else SamplerConfig(
                     topK        = ModelConfig.LLM_TOP_K,
-                    topP        = 0.9,
+                    topP        = ModelConfig.LLM_TOP_P,
                     temperature = temperature.toDouble(),
                 ),
                 systemInstruction = Contents.of(
