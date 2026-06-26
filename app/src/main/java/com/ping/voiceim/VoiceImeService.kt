@@ -51,9 +51,6 @@ class VoiceImeService : InputMethodService() {
     private var isRecording = false
     private var pendingText = ""
 
-    // Prevents collapseSelection → setText → onSelectionChanged → collapseSelection recursion
-    private var suppressSelectionCallback = false
-
     // Selection state
     private var selStart = 0
     private var selEnd   = 0
@@ -111,18 +108,13 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection.setOnClickListener { collapseSelection() }
 
         tvTranscription.onSelectionChanged = { start, end ->
-            if (!suppressSelectionCallback) {
-                selStart = start
-                selEnd   = end
-                if (start < end && pendingText.isNotEmpty()) {
-                    showCandidatePanel()
-                } else {
-                    collapseSelection()
-                }
+            selStart = start
+            selEnd   = end
+            if (start < end && pendingText.isNotEmpty()) {
+                showCandidatePanel()
+            } else {
+                collapseSelection()
             }
-        }
-        tvTranscription.onApplyRequested = {
-            if (selStart < selEnd && pendingText.isNotEmpty()) showCandidatePanel()
         }
 
         updateUi()
@@ -251,9 +243,7 @@ class VoiceImeService : InputMethodService() {
             selEnd.coerceIn(0, pendingText.length),
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
-        suppressSelectionCallback = true
         tvTranscription.text = spannable
-        suppressSelectionCallback = false
 
         tvSelectedRange.text = "選取範圍：「$selected」"
 
@@ -288,11 +278,7 @@ class VoiceImeService : InputMethodService() {
         if (!::layoutCandidates.isInitialized) return
         layoutCandidates.visibility     = View.GONE
         layoutNormalControls.visibility = View.VISIBLE
-        if (::tvTranscription.isInitialized) {
-            suppressSelectionCallback = true
-            tvTranscription.text = pendingText
-            suppressSelectionCallback = false
-        }
+        if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {

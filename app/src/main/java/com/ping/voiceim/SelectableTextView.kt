@@ -2,55 +2,63 @@ package com.ping.voiceim
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
-import androidx.appcompat.widget.AppCompatTextView
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.widget.TextView
 
 /**
- * A selectable TextView that:
- * - Fires [onSelectionChanged] whenever the selection range changes.
- * - Replaces the system copy/paste action bar with a single "套用詞彙" item.
- *   Tapping it fires [onApplyRequested] and closes the action mode.
+ * Non-focusable TextView with custom long-press + drag gesture to report
+ * a character selection range. Avoids setTextIsSelectable() so the system
+ * never steals window focus and dismisses the IME.
  */
 class SelectableTextView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
-) : AppCompatTextView(context, attrs, defStyleAttr) {
+) : TextView(context, attrs, defStyleAttr) {
 
     var onSelectionChanged: ((selStart: Int, selEnd: Int) -> Unit)? = null
-    var onApplyRequested: (() -> Unit)? = null
+
+    private var selAnchor  = -1
+    private var isDragging = false
+
+    private val gestureDetector = GestureDetector(context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                val offset = offsetAt(e.x, e.y)
+                if (offset < 0 || text.isEmpty()) return
+                selAnchor  = offset
+                isDragging = true
+                fire(offset, (offset + 1).coerceAtMost(text.length))
+            }
+        })
 
     init {
-        setTextIsSelectable(true)
-        // Suppress the default copy/paste/share/web-search action bar and
-        // replace it with our own single action.
-        setCustomSelectionActionModeCallback(object : ActionMode.Callback {
-            override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-                menu.clear()
-                menu.add(0, MENU_APPLY, 0, "套用詞彙")
-                return true
-            }
-            override fun onPrepareActionMode(mode: ActionMode, menu: Menu) = false
-            override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
-                if (item.itemId == MENU_APPLY) {
-                    onApplyRequested?.invoke()
-                    mode.finish()
-                    return true
-                }
-                return false
-            }
-            override fun onDestroyActionMode(mode: ActionMode) {}
-        })
+        isFocusable            = false
+        isFocusableInTouchMode = false
+        isLongClickable        = false
     }
 
-    public override fun onSelectionChanged(selStart: Int, selEnd: Int) {
-        super.onSelectionChanged(selStart, selEnd)
-        onSelectionChanged?.invoke(selStart, selEnd)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(event)
+        when (event.action) {
+            MotionEvent.ACTION_MOVE -> if (isDragging) {
+                val offset = offsetAt(event.x, event.y).coerceIn(0, text.length)
+                val start  = minOf(selAnchor, offset)
+                val end    = maxOf(selAnchor, offset).coerceAtMost(text.length)
+                fire(start, end)
+            }
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL -> isDragging = false
+        }
+        return true
     }
 
-    companion object {
-        private const val MENU_APPLY = 1
+    private fun offsetAt(x: Float, y: Float): Int {
+        val l = layout ?: return -1
+        val line = l.getLineForVertical(y.toInt() + scrollY)
+        return l.getOffsetForHorizontal(line, x + scrollX)
     }
+
+    private fun fire(start: Int, end: Int) = onSelectionChanged?.invoke(start, end)
 }
