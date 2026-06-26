@@ -90,10 +90,13 @@ object ModelConfig {
     /**
      * Total KV-cache context window in tokens (prompt + generated output combined).
      * This is EngineConfig.maxNumTokens — NOT just the max new tokens.
-     * Our system prompt + few-shot examples + user message ≈ 600–800 tokens;
-     * 1024 matches the edge-gallery default and leaves ~200 tokens for output.
+     *
+     * Our SYSTEM_INSTRUCTION (role + schema + few-shot) alone is ~840 tokens.
+     * User message + node tree adds another 100–300 tokens.
+     * 2048 gives the model ~900 tokens of headroom for output.
+     * (edge-gallery default is 1024 but their system prompts are much shorter.)
      */
-    const val LLM_MAX_CONTEXT_TOKENS = 1024
+    const val LLM_MAX_CONTEXT_TOKENS = 2048
 
     /** Max new tokens for the generate() interface (unused by LiteRT LM directly). */
     const val LLM_MAX_NEW_TOKENS = 256

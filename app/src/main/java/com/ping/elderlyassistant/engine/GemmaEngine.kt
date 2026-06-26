@@ -44,6 +44,8 @@ class GemmaEngine(private val context: Context) : LlmEngine {
 
         val modelPath    = ModelConfig.gemmaModelPath(context)
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
+        // Internal cache for GPU compiled shaders — always writable, no extra permissions needed.
+        val shaderCacheDir = context.cacheDir.absolutePath
 
         val backends = listOf<Pair<String, () -> Backend>>(
             "NPU" to { Backend.NPU(nativeLibDir) },
@@ -58,7 +60,7 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                     modelPath    = modelPath,
                     backend      = backendFactory(),
                     maxNumTokens = ModelConfig.LLM_MAX_CONTEXT_TOKENS,
-                    cacheDir     = null,   // let LiteRT LM manage its own kernel cache
+                    cacheDir     = shaderCacheDir,
                 )
                 val e = Engine(config)
                 e.initialize()
@@ -99,6 +101,8 @@ class GemmaEngine(private val context: Context) : LlmEngine {
 
         val t0 = System.currentTimeMillis()
         val sb = StringBuilder()
+        Log.d(TAG, "generate(): system=${PromptBuilder.SYSTEM_INSTRUCTION.length} chars, " +
+                "prompt=${prompt.length} chars, maxCtx=${ModelConfig.LLM_MAX_CONTEXT_TOKENS}")
 
         try {
             val convConfig = ConversationConfig(
@@ -127,6 +131,9 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                             onToken(partial)
                         }
                         override fun onDone() {
+                            if (sb.isEmpty()) Log.w(TAG,
+                                "generate() onDone with 0 tokens — context overflow? " +
+                                "maxCtx=${ModelConfig.LLM_MAX_CONTEXT_TOKENS}")
                             if (cont.isActive) cont.resume(Unit)
                         }
                         override fun onError(throwable: Throwable) {
