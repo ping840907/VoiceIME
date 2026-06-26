@@ -21,7 +21,7 @@
             android:paddingEnd="12dp"
             android:textSize="18sp"
             android:textColor="@color/ime_preview_text"
-            android:hint="長按選取詞彙可套用自定義替換"
+            android:hint="辨識結果將顯示於此"
             android:textColorHint="#888888"
             android:singleLine="true" />
     </HorizontalScrollView>

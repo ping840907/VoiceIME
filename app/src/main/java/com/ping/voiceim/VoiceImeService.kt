@@ -230,7 +230,6 @@ class VoiceImeService : InputMethodService() {
         pendingText = text
         tvTranscription.text = text
         setState(State.IDLE)
-        tvStatus.text = "長按文字選取範圍，可套用自定義替換"
     }
 
     // ── Selection / candidate panel ───────────────────────────────────────────
@@ -354,9 +353,7 @@ class VoiceImeService : InputMethodService() {
             Log.w(TAG, "OpenCC failed: ${ex.message}")
             raw
         }
-        // Auto-apply dictionary on transcription output
-        val dict = UserDictionary.load(this)
-        return UserDictionary.apply(traditional, dict)
+        return traditional
     }
 
     // ── Text actions ──────────────────────────────────────────────────────────
