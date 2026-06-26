@@ -47,20 +47,18 @@ class DictSettingsActivity : AppCompatActivity() {
 
     private fun showAddDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_add_entry, null)
-        val etFrom = view.findViewById<EditText>(R.id.et_from)
-        val etTo   = view.findViewById<EditText>(R.id.et_to)
+        val etTo = view.findViewById<EditText>(R.id.et_to)
 
         AlertDialog.Builder(this)
-            .setTitle("新增詞彙替換")
+            .setTitle("新增替換詞")
             .setView(view)
             .setPositiveButton("新增") { _, _ ->
-                val from = etFrom.text.toString().trim()
-                val to   = etTo.text.toString().trim()
-                if (from.isBlank() || to.isBlank()) {
-                    Toast.makeText(this, "請填寫兩個欄位", Toast.LENGTH_SHORT).show()
+                val to = etTo.text.toString().trim()
+                if (to.isBlank()) {
+                    Toast.makeText(this, "請輸入替換詞", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                UserDictionary.add(this, from, to)
+                UserDictionary.add(this, to, to)
                 adapter.update(loadEntries())
             }
             .setNegativeButton("取消", null)
