@@ -51,6 +51,9 @@ class VoiceImeService : InputMethodService() {
     private var isRecording = false
     private var pendingText = ""
 
+    // Prevents collapseSelection → setText → onSelectionChanged → collapseSelection recursion
+    private var suppressSelectionCallback = false
+
     // Selection state
     private var selStart = 0
     private var selEnd   = 0
@@ -108,12 +111,14 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection.setOnClickListener { collapseSelection() }
 
         tvTranscription.onSelectionChanged = { start, end ->
-            selStart = start
-            selEnd   = end
-            if (start < end && pendingText.isNotEmpty()) {
-                showCandidatePanel()
-            } else {
-                collapseSelection()
+            if (!suppressSelectionCallback) {
+                selStart = start
+                selEnd   = end
+                if (start < end && pendingText.isNotEmpty()) {
+                    showCandidatePanel()
+                } else {
+                    collapseSelection()
+                }
             }
         }
         tvTranscription.onApplyRequested = {
@@ -239,7 +244,7 @@ class VoiceImeService : InputMethodService() {
         )
         if (selected.isEmpty()) return
 
-        // Highlight selection in preview
+        // Highlight selection in preview (suppress callback to avoid re-entry)
         val spannable = SpannableString(pendingText)
         spannable.setSpan(
             BackgroundColorSpan(0x4429B6F6),
@@ -247,7 +252,9 @@ class VoiceImeService : InputMethodService() {
             selEnd.coerceIn(0, pendingText.length),
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
+        suppressSelectionCallback = true
         tvTranscription.text = spannable
+        suppressSelectionCallback = false
 
         tvSelectedRange.text = "選取範圍：「$selected」"
 
@@ -282,7 +289,11 @@ class VoiceImeService : InputMethodService() {
         if (!::layoutCandidates.isInitialized) return
         layoutCandidates.visibility     = View.GONE
         layoutNormalControls.visibility = View.VISIBLE
-        if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
+        if (::tvTranscription.isInitialized) {
+            suppressSelectionCallback = true
+            tvTranscription.text = pendingText
+            suppressSelectionCallback = false
+        }
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {
