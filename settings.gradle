@@ -10,6 +10,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' }
         // Local AAR directory — drop sherpa-onnx-*.aar into app/libs/
         flatDir { dirs 'app/libs' }
     }
