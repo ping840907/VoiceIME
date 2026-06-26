@@ -330,7 +330,6 @@ class VoiceImeService : InputMethodService() {
 
         AlertDialog.Builder(themedCtx)
             .setTitle("新增替換詞")
-            .setMessage("將「$selected」替換為：")
             .setView(etTo)
             .setPositiveButton("新增並套用") { _, _ ->
                 val to = etTo.text.toString().trim()
