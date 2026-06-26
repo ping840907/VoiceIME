@@ -53,7 +53,7 @@ class ActionExecutor(private val context: Context) {
         }
 
         val json = runCatching { JSONObject(jsonStr) }.getOrElse {
-            return Result.Failure("JSON 解析失敗：${it.message}")
+            return Result.Failure("AI 回覆格式無效，請重試")
         }
 
         val action = json.optString("action")
@@ -65,8 +65,8 @@ class ActionExecutor(private val context: Context) {
             "home"     -> executeGlobal(svc, AccessibilityService.GLOBAL_ACTION_HOME,  POST_NAVIGATE_DELAY)
             "open_app" -> executeOpenApp(json.optString("package"))
             "done"     -> Result.Done
-            "unknown"  -> Result.Failure(json.optString("reason", "模型回報無法執行"))
-            else       -> Result.Failure("未知動作類型：$action")
+            "unknown"  -> Result.Failure(json.optString("reason", "助理無法執行這個指令"))
+            else       -> Result.Failure("AI 產生了不支援的動作，請重試")
         }.also {
             Log.i(TAG, "action=$action result=$it json=$jsonStr")
         }
@@ -77,7 +77,7 @@ class ActionExecutor(private val context: Context) {
     private suspend fun executeClick(svc: AssistantAccessibilityService, json: JSONObject): Result {
         val id   = json.optString("id").trim()
         val text = json.optString("text").trim()
-        val root = svc.rootInActiveWindow ?: return Result.Failure("rootInActiveWindow 為空")
+        val root = svc.rootInActiveWindow ?: return Result.Failure("無法讀取畫面，請確認無障礙服務正常運作")
 
         // 1. Try by viewIdResourceName
         if (id.isNotBlank()) {
@@ -105,7 +105,7 @@ class ActionExecutor(private val context: Context) {
             }
         }
 
-        return Result.Failure("找不到可點擊的節點：id='$id' text='$text'")
+        return Result.Failure("找不到可點擊的按鈕，請重試")
     }
 
     // ── type ──────────────────────────────────────────────────────────────────
@@ -113,8 +113,8 @@ class ActionExecutor(private val context: Context) {
     private suspend fun executeType(svc: AssistantAccessibilityService, json: JSONObject): Result {
         val id   = json.optString("id").trim()
         val text = json.optString("text")   // getString would throw if key absent (LLM hallucination)
-        if (text.isBlank()) return Result.Failure("type 動作缺少 text 欄位")
-        val root = svc.rootInActiveWindow ?: return Result.Failure("rootInActiveWindow 為空")
+        if (text.isBlank()) return Result.Failure("AI 未提供輸入內容，請重試")
+        val root = svc.rootInActiveWindow ?: return Result.Failure("無法讀取畫面，請確認無障礙服務正常運作")
 
         val target: AccessibilityNodeInfo? = when {
             id.isNotBlank() -> {
@@ -125,7 +125,7 @@ class ActionExecutor(private val context: Context) {
             else -> findFirstEditable(root)
         }
 
-        if (target == null) return Result.Failure("找不到輸入欄位：id='$id'")
+        if (target == null) return Result.Failure("找不到可輸入的欄位，請重試")
 
         // Focus first, then set text
         target.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
@@ -137,15 +137,15 @@ class ActionExecutor(private val context: Context) {
         }
         val ok = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         delay(POST_TYPE_DELAY)
-        return if (ok) Result.Success else Result.Failure("ACTION_SET_TEXT 失敗")
+        return if (ok) Result.Success else Result.Failure("文字輸入失敗，請重試")
     }
 
     // ── scroll ────────────────────────────────────────────────────────────────
 
     private suspend fun executeScroll(svc: AssistantAccessibilityService, direction: String): Result {
-        val root = svc.rootInActiveWindow ?: return Result.Failure("rootInActiveWindow 為空")
+        val root = svc.rootInActiveWindow ?: return Result.Failure("無法讀取畫面，請確認無障礙服務正常運作")
         val scrollable = root.findFirstScrollable()
-            ?: return Result.Failure("畫面中沒有可捲動的元素")
+            ?: return Result.Failure("此畫面無法捲動")
 
         val action = if (direction == "up")
             AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
@@ -168,16 +168,16 @@ class ActionExecutor(private val context: Context) {
     // ── open_app ──────────────────────────────────────────────────────────────
 
     private suspend fun executeOpenApp(pkg: String): Result {
-        if (pkg.isBlank()) return Result.Failure("未指定 packageName")
+        if (pkg.isBlank()) return Result.Failure("AI 未指定應用程式，請重試")
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-            ?: return Result.Failure("裝置上找不到 App：$pkg")
+            ?: return Result.Failure("找不到指定的應用程式，請確認已安裝")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         return try {
             context.startActivity(intent)
             delay(POST_NAVIGATE_DELAY)
             Result.Success
         } catch (ex: android.content.ActivityNotFoundException) {
-            Result.Failure("無法啟動 App：$pkg")
+            Result.Failure("無法開啟應用程式，請重試")
         }
     }
 

@@ -80,13 +80,13 @@ class PipelineOrchestrator(private val context: Context) {
     /** Call once from FloatingBubbleService.onCreate() to warm engines in background. */
     fun preloadModels() {
         scope.launch {
-            _state.value = State.ModelLoading("語音辨識模型載入中…")
+            _state.value = State.ModelLoading("準備中（1／2）：語音辨識…")
             val asrResult = asr.load()
             val asrName = asr::class.simpleName
             if (asrResult.success) Log.i(TAG, "$asrName ready ✓")
             else Log.w(TAG, "$asrName unavailable: ${asrResult.error}")
 
-            _state.value = State.ModelLoading("Gemma 模型載入中，首次約需 30–60 秒…")
+            _state.value = State.ModelLoading("準備中（2／2）：AI 模型，首次約需 30–60 秒…")
             val llmResult = llm.load()
             if (llmResult.success) Log.i(TAG, "Gemma 4 E2B ready ✓")
             else Log.w(TAG, "Gemma unavailable: ${llmResult.error}")
@@ -161,7 +161,7 @@ class PipelineOrchestrator(private val context: Context) {
 
         if (!asr.isLoaded()) {
             val res = asr.load()
-            if (!res.success) { emitTerminal(State.Error("語音辨識未就緒：${res.error}")); return }
+            if (!res.success) { emitTerminal(State.Error("語音辨識準備中，請稍候再試")); return }
         }
 
         val rawTranscript = asr.transcribe(recording.samples)
@@ -178,7 +178,7 @@ class PipelineOrchestrator(private val context: Context) {
 
     private suspend fun runLlmLoop(transcript: String) {
         if (!llm.isLoaded()) {
-            emitTerminal(State.Error("模型尚未載入，請稍候再試"))
+            emitTerminal(State.Error("AI 模型準備中，請稍候再試"))
             return
         }
 
@@ -204,10 +204,7 @@ class PipelineOrchestrator(private val context: Context) {
                 val json = extractJson(rawResponse)
                 if (json == null) {
                     Log.e(TAG, "JSON extraction failed. Full raw response: $rawResponse")
-                    val preview = rawResponse.take(80).trim().replace('\n', ' ')
-                    finalError = "指令格式錯誤，請換個說法\n" +
-                        if (preview.isBlank()) "（模型未輸出內容）"
-                        else "模型回覆：「$preview${if (rawResponse.length > 80) "…" else ""}」"
+                    finalError = "請換個說法重試，助理未能理解這個指令"
                     break
                 }
                 lastJson = json
@@ -221,7 +218,7 @@ class PipelineOrchestrator(private val context: Context) {
                     is ActionExecutor.Result.Done    -> break
                     is ActionExecutor.Result.Blocked -> { finalError = result.message; break }
                     is ActionExecutor.Result.Failure -> {
-                        finalError = "執行失敗：${result.reason}"; break
+                        finalError = result.reason; break
                     }
                     is ActionExecutor.Result.Success -> {
                         history.add(transcript to json)
@@ -232,7 +229,7 @@ class PipelineOrchestrator(private val context: Context) {
         }
 
         when {
-            completed == null  -> emitTerminal(State.Error("操作逾時，已自動停止"))
+            completed == null  -> emitTerminal(State.Error("操作時間過長，已自動停止，請再試一次"))
             finalError != null -> emitTerminal(State.Error(finalError!!))
             else               -> emitTerminal(State.Done(transcript, lastJson, lastStats))
         }

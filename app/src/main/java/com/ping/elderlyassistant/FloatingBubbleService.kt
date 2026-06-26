@@ -152,7 +152,7 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                         updatePanel(getString(R.string.bubble_listening), listening = true)
 
                     is PipelineOrchestrator.State.Transcribing ->
-                        updatePanel("辨識中 (%.1fs)…".format(state.durationSec), listening = false)
+                        updatePanel(getString(R.string.bubble_transcribing), listening = false)
 
                     is PipelineOrchestrator.State.Thinking -> {
                         // Collapse text input + hide keyboard so the blocking overlay
@@ -166,22 +166,17 @@ class FloatingBubbleService : Service(), LifecycleOwner {
 
                     is PipelineOrchestrator.State.Executing -> {
                         blockingOverlay.updateStatus(getString(R.string.overlay_executing))
-                        updatePanel("執行中…", listening = false)
+                        updatePanel(getString(R.string.overlay_executing), listening = false)
                     }
 
                     is PipelineOrchestrator.State.Done -> {
                         blockingOverlay.hide()
-                        val msg = buildString {
-                            append("已完成：「${state.transcript}」")
-                            if (state.llmStats != null)
-                                append("\n速度：%.1f t/s".format(state.llmStats.decodeSpeedTps))
-                        }
-                        updatePanel(msg, listening = false)
+                        updatePanel("完成「${state.transcript}」", listening = false)
                     }
 
                     is PipelineOrchestrator.State.Error -> {
                         blockingOverlay.hide()
-                        updatePanel("錯誤：${state.message}", listening = false)
+                        updatePanel(state.message, listening = false)
                     }
                 }
             }
@@ -376,7 +371,11 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                     updatePanel(s.message, listening = false)
                 is PipelineOrchestrator.State.Idle ->
                     updatePanel(getString(R.string.bubble_tap_hint), listening = false)
-                else -> { /* active states (Recording/Thinking/…) are already streaming updates */ }
+                is PipelineOrchestrator.State.Recording ->
+                    updatePanel(getString(R.string.bubble_listening), listening = true)
+                is PipelineOrchestrator.State.Transcribing ->
+                    updatePanel(getString(R.string.bubble_transcribing), listening = false)
+                else -> { /* Thinking/Executing: BlockingOverlay takes over; Done/Error: transition imminent */ }
             }
         } catch (ex: Exception) {
             Log.e(TAG, "showPanel failed: ${ex.message}")
