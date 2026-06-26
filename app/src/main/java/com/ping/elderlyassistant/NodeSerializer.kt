@@ -16,7 +16,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 object NodeSerializer {
 
     private const val MAX_NODES_DEBUG = 60
-    private const val MAX_NODES_LLM   = 35   // keep context < 2 K tokens
+    const val MAX_NODES_LLM          = 35   // CPU (2048-token context)
+    const val MAX_NODES_LLM_GPU      = 20   // GPU (1024-token context)
 
     // Class names that are purely layout containers — skip unless they have text
     private val CONTAINER_CLASSES = setOf(
@@ -41,10 +42,13 @@ object NodeSerializer {
      * Compact serialisation optimised for LLM token budget.
      *   - Drops layout containers with no useful text
      *   - Promotes interactive nodes to top of output
-     *   - Truncates at [MAX_NODES_LLM] with a summary line
+     *   - Truncates at [maxNodes] with a summary line
      */
-    fun serializeForLlm(root: AccessibilityNodeInfo?, packageName: String): SerializedTree =
-        serializeInternal(root, packageName, MAX_NODES_LLM, aggressive = true)
+    fun serializeForLlm(
+        root: AccessibilityNodeInfo?,
+        packageName: String,
+        maxNodes: Int = MAX_NODES_LLM
+    ): SerializedTree = serializeInternal(root, packageName, maxNodes, aggressive = true)
 
     // ── Implementation ────────────────────────────────────────────────────────
 

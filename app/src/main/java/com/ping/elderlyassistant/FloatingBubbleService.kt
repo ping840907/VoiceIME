@@ -162,9 +162,13 @@ class FloatingBubbleService : Service(), LifecycleOwner {
                         // Collapse text input + hide keyboard so the blocking overlay
                         // gets a clean view (and so the IME doesn't interfere with execution).
                         collapseTextInput()
-                        blockingOverlay.show(
-                            getString(R.string.overlay_thinking)
-                        ) { pipeline.cancel() }
+                        val thinkingMsg = when (pipeline.llmBackend()) {
+                            "CPU" -> "AI 分析中（CPU 模式，約需 1–2 分鐘）"
+                            "GPU" -> "AI 分析中（GPU 加速）"
+                            "NPU" -> "AI 分析中（NPU 加速）"
+                            else  -> getString(R.string.overlay_thinking)
+                        }
+                        blockingOverlay.show(thinkingMsg) { pipeline.cancel() }
                         updatePanel("理解中：「${state.transcript}」", listening = false)
                     }
 

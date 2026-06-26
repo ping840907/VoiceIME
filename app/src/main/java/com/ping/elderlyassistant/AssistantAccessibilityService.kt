@@ -100,12 +100,12 @@ class AssistantAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Compact LLM-optimised serialisation (≤35 nodes, interactive-first)
-     * to stay within the Gemma token budget.
+     * Compact LLM-optimised serialisation (interactive-first).
+     * [maxNodes] controls the token budget: 35 for CPU (2048 context), 20 for GPU (1024 context).
      */
-    fun captureNodeTreeForLlm(): NodeSerializer.SerializedTree? {
+    fun captureNodeTreeForLlm(maxNodes: Int = NodeSerializer.MAX_NODES_LLM): NodeSerializer.SerializedTree? {
         val root: AccessibilityNodeInfo = rootInActiveWindow ?: return null
-        return NodeSerializer.serializeForLlm(root, currentPackage)
+        return NodeSerializer.serializeForLlm(root, currentPackage, maxNodes)
     }
 
     /**

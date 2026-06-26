@@ -4,11 +4,13 @@ import android.content.Context
 import android.util.Log
 import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.ping.elderlyassistant.AssistantAccessibilityService
+import com.ping.elderlyassistant.NodeSerializer
 import com.ping.elderlyassistant.ServicePrefs
 import com.ping.elderlyassistant.engine.AsrEngine
 import com.ping.elderlyassistant.engine.AudioRecorder
 import com.ping.elderlyassistant.engine.GemmaEngine
 import com.ping.elderlyassistant.engine.LlmEngine
+import com.ping.elderlyassistant.engine.ModelConfig
 import com.ping.elderlyassistant.engine.Qwen3AsrEngine
 import com.ping.elderlyassistant.engine.SenseVoiceEngine
 import kotlinx.coroutines.CoroutineScope
@@ -200,8 +202,11 @@ class PipelineOrchestrator(private val context: Context) {
             for (step in 0 until AutomationGuard.MAX_STEPS) {
                 // Re-capture screen every step; panel has FLAG_NOT_FOCUSABLE so this
                 // always returns the foreground app's window, not the bubble's own tree.
+                // GPU uses fewer nodes to stay within the 1024-token KV cache.
                 val svc      = AssistantAccessibilityService.instance
-                val nodeTree = svc?.captureNodeTreeForLlm()?.text ?: ""
+                val maxNodes = if (_llmBackend == "GPU") ModelConfig.MAX_NODES_LLM_GPU
+                               else NodeSerializer.MAX_NODES_LLM
+                val nodeTree = svc?.captureNodeTreeForLlm(maxNodes)?.text ?: ""
                 val prompt   = PromptBuilder.build(transcript, nodeTree, history)
 
                 _state.value = State.Thinking(transcript)

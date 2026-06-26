@@ -47,19 +47,21 @@ class GemmaEngine(private val context: Context) : LlmEngine {
         // Internal cache for GPU compiled shaders — always writable, no extra permissions needed.
         val shaderCacheDir = context.cacheDir.absolutePath
 
-        val backends = listOf<Pair<String, () -> Backend>>(
-            "NPU" to { Backend.NPU(nativeLibDir) },
-            "GPU" to { Backend.GPU() },
-            "CPU" to { Backend.CPU() },
+        // GPU uses a smaller context to stay within GPU memory limits;
+        // it is paired with SYSTEM_INSTRUCTION_COMPACT + MAX_NODES_LLM_GPU in generate().
+        val backends = listOf(
+            Triple("NPU", { Backend.NPU(nativeLibDir) }, ModelConfig.LLM_MAX_CONTEXT_TOKENS),
+            Triple("GPU", { Backend.GPU() },             ModelConfig.LLM_MAX_CONTEXT_TOKENS_GPU),
+            Triple("CPU", { Backend.CPU() },             ModelConfig.LLM_MAX_CONTEXT_TOKENS),
         )
 
         var lastError: Exception? = null
-        for ((name, backendFactory) in backends) {
+        for ((name, backendFactory, maxTokens) in backends) {
             try {
                 val config = EngineConfig(
                     modelPath    = modelPath,
                     backend      = backendFactory(),
-                    maxNumTokens = ModelConfig.LLM_MAX_CONTEXT_TOKENS,
+                    maxNumTokens = maxTokens,
                     cacheDir     = shaderCacheDir,
                 )
                 val e = Engine(config)
@@ -112,9 +114,11 @@ class GemmaEngine(private val context: Context) : LlmEngine {
                     topP        = ModelConfig.LLM_TOP_P,
                     temperature = temperature.toDouble(),
                 ),
-                systemInstruction = Contents.of(
-                    mutableListOf(Content.Text(PromptBuilder.SYSTEM_INSTRUCTION))
-                ),
+                // GPU uses the compact instruction to stay within the 1024-token KV cache.
+                systemInstruction = Contents.of(mutableListOf(Content.Text(
+                    if (_activeBackend == "GPU") PromptBuilder.SYSTEM_INSTRUCTION_COMPACT
+                    else PromptBuilder.SYSTEM_INSTRUCTION
+                ))),
                 tools           = emptyList(),
                 initialMessages = emptyList(),
             )

@@ -14,8 +14,8 @@ object AutomationGuard {
 
     private const val TAG = "AutomationGuard"
 
-    const val MAX_STEPS     = 8
-    const val TIMEOUT_MS    = 30_000L
+    const val MAX_STEPS      = 8
+    const val TIMEOUT_MS     = 180_000L  // 3 min — covers CPU inference on mid-range phones
     const val STEP_SETTLE_MS = 900L
 
     suspend fun <T> withGuard(block: suspend () -> T): T? =

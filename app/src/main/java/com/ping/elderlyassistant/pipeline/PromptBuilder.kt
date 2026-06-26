@@ -117,7 +117,31 @@ object PromptBuilder {
         }
     }.trim()
 
-    // ── System instruction (injected via ConversationConfig.systemInstruction()) ─
+    // ── Compact system instruction for GPU (≤ 1024-token context) ──────────────
+    /**
+     * ~230-token variant for GPU backend where maxNumTokens = 1024.
+     * Omits most few-shot examples and inline package list to stay under budget.
+     * Paired with MAX_NODES_LLM_GPU = 20 nodes in PipelineOrchestrator.
+     */
+    val SYSTEM_INSTRUCTION_COMPACT = buildString {
+        appendLine("你是 Android 手機操作助理。")
+        appendLine("根據指令和畫面節點選擇：")
+        appendLine("• 可操作 → 輸出一個 JSON（不加其他文字）")
+        appendLine("• 不可操作 → 繁體中文簡短回覆（≤50字）")
+        appendLine()
+        appendLine(ACTION_SCHEMA)
+        appendLine()
+        appendLine("常用套件：LINE→jp.naver.line.android，設定→com.android.settings，")
+        appendLine("電話→com.android.dialer，YouTube→com.google.android.youtube，")
+        appendLine("地圖→com.google.android.apps.maps，訊息→com.google.android.apps.messaging")
+        appendLine()
+        appendLine("例 1：打電話給媽媽 / 可見 id=com.android.dialer:id/cliv_call")
+        appendLine("{\"action\":\"click\",\"id\":\"com.android.dialer:id/cliv_call\"}")
+        appendLine("例 2：開啟LINE / 畫面沒有LINE")
+        appendLine("{\"action\":\"open_app\",\"package\":\"jp.naver.line.android\"}")
+    }.trim()
+
+    // ── Full system instruction for CPU (2048-token context) ──────────────────
     val SYSTEM_INSTRUCTION = buildString {
         appendLine("你是一位 Android 手機操作助理，服務台灣用戶。")
         appendLine("使用者以繁體中文（台灣）或台語（閩南語）下指令；無論輸入語言為何，請以繁體中文（台灣）理解。")

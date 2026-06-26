@@ -88,15 +88,21 @@ object ModelConfig {
     const val GEMMA_MODEL_FILE = "gemma-4-E2B-it.litertlm"
 
     /**
-     * Total KV-cache context window in tokens (prompt + generated output combined).
-     * This is EngineConfig.maxNumTokens — NOT just the max new tokens.
-     *
-     * Our SYSTEM_INSTRUCTION (role + schema + few-shot) alone is ~840 tokens.
-     * User message + node tree adds another 100–300 tokens.
-     * 2048 gives the model ~900 tokens of headroom for output.
-     * (edge-gallery default is 1024 but their system prompts are much shorter.)
+     * KV-cache context window (prompt + output) for the CPU backend.
+     * Full SYSTEM_INSTRUCTION ~840 tokens + 35 nodes ~770 tokens = ~1610 tokens prompt.
+     * 2048 leaves ~418 tokens for model output.
      */
     const val LLM_MAX_CONTEXT_TOKENS = 2048
+
+    /**
+     * KV-cache context window for the GPU backend.
+     * Paired with SYSTEM_INSTRUCTION_COMPACT (~230 tokens) and MAX_NODES_LLM_GPU (20 nodes).
+     * 230 + 20×22 + 20 (instruction) ≈ 690 tokens prompt → ~334 tokens for output.
+     */
+    const val LLM_MAX_CONTEXT_TOKENS_GPU = 1024
+
+    /** Max LLM-prompt nodes when running on GPU (keeps total prompt ≤ ~690 tokens). */
+    const val MAX_NODES_LLM_GPU = 20
 
     /** Max new tokens for the generate() interface (unused by LiteRT LM directly). */
     const val LLM_MAX_NEW_TOKENS = 256
