@@ -61,11 +61,36 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Step 1 -->
+        <!-- Mic permission -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="步驟一：啟用輸入法"
+            android:text="步驟一：授予麥克風權限"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_mic_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btn_grant_mic"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="授予麥克風權限"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Step 2 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="步驟二：啟用輸入法"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"
@@ -78,11 +103,11 @@
             android:text="前往系統設定 → 啟用語音輸入法"
             android:layout_marginBottom="20dp" />
 
-        <!-- Step 2 -->
+        <!-- Step 3 -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="步驟二：切換輸入法"
+            android:text="步驟三：切換輸入法"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"

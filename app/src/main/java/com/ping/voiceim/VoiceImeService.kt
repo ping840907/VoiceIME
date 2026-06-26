@@ -1,7 +1,12 @@
 package com.ping.voiceim
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -9,6 +14,7 @@ import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.ping.voiceim.engine.AudioRecorder
 import com.ping.voiceim.engine.ModelConfig
@@ -117,7 +123,19 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
+    private fun hasMicPermission() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+
     private fun startRecording() {
+        if (!hasMicPermission()) {
+            showToast("請先在「語音輸入法」設定頁授予麥克風權限")
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            return
+        }
         if (!asr.value.isLoaded()) {
             preloadModel()
             return

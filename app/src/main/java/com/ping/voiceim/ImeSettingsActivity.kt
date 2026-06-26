@@ -1,20 +1,38 @@
 package com.ping.voiceim
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.ping.voiceim.engine.ModelConfig
 import java.io.File
 
 class ImeSettingsActivity : AppCompatActivity() {
 
+    private val requestMic = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        updateMicStatus()
+        if (!granted) {
+            findViewById<TextView>(R.id.tv_mic_status).text =
+                "⚠ 麥克風權限遭拒，請至應用程式設定手動授予"
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+
+        findViewById<Button>(R.id.btn_grant_mic).setOnClickListener {
+            requestMic.launch(Manifest.permission.RECORD_AUDIO)
+        }
 
         findViewById<Button>(R.id.btn_enable_ime).setOnClickListener {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
@@ -26,11 +44,20 @@ class ImeSettingsActivity : AppCompatActivity() {
         }
 
         updateModelStatus()
+        updateMicStatus()
     }
 
     override fun onResume() {
         super.onResume()
         updateModelStatus()
+        updateMicStatus()
+    }
+
+    private fun updateMicStatus() {
+        val tv = findViewById<TextView>(R.id.tv_mic_status)
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        tv.text = if (granted) "✓ 麥克風權限已授予" else "⚠ 尚未授予麥克風權限"
     }
 
     private fun updateModelStatus() {
