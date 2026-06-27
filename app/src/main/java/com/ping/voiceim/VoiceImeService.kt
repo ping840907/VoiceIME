@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
@@ -12,6 +14,7 @@ import android.text.style.BackgroundColorSpan
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
@@ -34,10 +37,6 @@ import kotlinx.coroutines.withContext
 
 class VoiceImeService : InputMethodService() {
 
-    companion object {
-        private const val TAG = "VoiceImeService"
-    }
-
     // IME runs under the bare system theme; wrap it so AppCompat/Material widgets inflate correctly.
     private val themedCtx by lazy { ContextThemeWrapper(this, R.style.Theme_VoiceAssistant) }
 
@@ -48,6 +47,21 @@ class VoiceImeService : InputMethodService() {
     private var recordingJob: Job? = null
     private var isRecording = false
     private var pendingText = ""
+
+    // Repeat-delete for backspace long-press
+    private val repeatDeleteHandler = Handler(Looper.getMainLooper())
+    private val repeatDeleteRunnable: Runnable = object : Runnable {
+        override fun run() {
+            sendBackspace()
+            repeatDeleteHandler.postDelayed(this, REPEAT_DELETE_INTERVAL_MS)
+        }
+    }
+
+    companion object {
+        private const val TAG = "VoiceImeService"
+        private const val REPEAT_DELETE_DELAY_MS   = 400L
+        private const val REPEAT_DELETE_INTERVAL_MS = 50L
+    }
 
     // Selection state
     private var selStart = 0
@@ -102,7 +116,21 @@ class VoiceImeService : InputMethodService() {
 
         btnMic.setOnClickListener { onMicClick() }
         btnBackspace.setOnClickListener { onBackspaceClick() }
-        btnBackspace.setOnLongClickListener { clearCurrentWord(); true }
+        btnBackspace.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (pendingText.isEmpty()) {
+                        repeatDeleteHandler.postDelayed(repeatDeleteRunnable, REPEAT_DELETE_DELAY_MS)
+                    }
+                    false // let onClick fire normally
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    repeatDeleteHandler.removeCallbacks(repeatDeleteRunnable)
+                    false
+                }
+                else -> false
+            }
+        }
         btnEnter.setOnClickListener { onEnterClick() }
         btnSpace.setOnClickListener { commitText(" ") }
         btnNewline.setOnClickListener { commitText("\n") }
@@ -373,7 +401,7 @@ class VoiceImeService : InputMethodService() {
 
     private fun sendBackspace() { currentInputConnection?.deleteSurroundingText(1, 0) }
 
-    private fun clearCurrentWord() { currentInputConnection?.deleteSurroundingText(100, 0) }
+
 
     private fun sendEnter() {
         val ei     = currentInputEditorInfo
