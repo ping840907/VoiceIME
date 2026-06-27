@@ -68,6 +68,8 @@ class VoiceImeService : InputMethodService() {
     private lateinit var layoutCandidates: LinearLayout
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
+    private lateinit var btnSelExpandLeft: TextView
+    private lateinit var btnSelExpandRight: TextView
     private lateinit var btnCancelSelection: TextView
 
     private enum class State { IDLE, LOADING, RECORDING, PROCESSING }
@@ -90,6 +92,8 @@ class VoiceImeService : InputMethodService() {
         layoutCandidates     = view.findViewById(R.id.layout_candidates)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
+        btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
+        btnSelExpandRight    = view.findViewById(R.id.btn_sel_expand_right)
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
 
         btnMic.setOnClickListener { onMicClick() }
@@ -101,6 +105,11 @@ class VoiceImeService : InputMethodService() {
         btnSpace.setOnClickListener { commitText(" ") }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
+        // Tap: expand selection; long-press: shrink selection
+        btnSelExpandLeft.setOnClickListener  { adjustSelection(expandLeft  = true) }
+        btnSelExpandLeft.setOnLongClickListener  { adjustSelection(shrinkLeft  = true); true }
+        btnSelExpandRight.setOnClickListener { adjustSelection(expandRight = true) }
+        btnSelExpandRight.setOnLongClickListener { adjustSelection(shrinkRight = true); true }
 
         tvTranscription.onSelectionChanged = { start, end ->
             selStart = start
@@ -263,6 +272,23 @@ class VoiceImeService : InputMethodService() {
 
         layoutNormalControls.visibility = View.GONE
         layoutCandidates.visibility     = View.VISIBLE
+    }
+
+    private fun adjustSelection(
+        expandLeft: Boolean = false, shrinkLeft: Boolean = false,
+        expandRight: Boolean = false, shrinkRight: Boolean = false,
+    ) {
+        val len = pendingText.length
+        var s = selStart; var e = selEnd
+        when {
+            expandLeft  -> s = (s - 1).coerceAtLeast(0)
+            shrinkLeft  -> s = (s + 1).coerceAtMost(e - 1)
+            expandRight -> e = (e + 1).coerceAtMost(len)
+            shrinkRight -> e = (e - 1).coerceAtLeast(s + 1)
+        }
+        if (s >= e) return
+        selStart = s; selEnd = e
+        updateSelectionHighlight()
     }
 
     private fun updateSelectionHighlight() {
