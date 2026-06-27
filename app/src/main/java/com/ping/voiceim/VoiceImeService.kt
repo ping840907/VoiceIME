@@ -63,11 +63,10 @@ class VoiceImeService : InputMethodService() {
     private lateinit var tvTranscription: SelectableTextView
     private lateinit var tvStatus: TextView
     private lateinit var btnMic: ImageButton
-    private lateinit var btnBackspace: ImageButton
-    private lateinit var btnEnter: ImageButton
-    private lateinit var btnClear: TextView
-    private lateinit var btnCommit: TextView
+    private lateinit var btnBackspace: TextView
+    private lateinit var btnEnter: TextView
     private lateinit var btnSpace: TextView
+    private lateinit var btnNewline: TextView
     private lateinit var btnSettings: ImageButton
     private lateinit var progressBar: ProgressBar
     private lateinit var layoutNormalControls: LinearLayout
@@ -89,9 +88,8 @@ class VoiceImeService : InputMethodService() {
         btnMic               = view.findViewById(R.id.btn_mic)
         btnBackspace         = view.findViewById(R.id.btn_backspace)
         btnEnter             = view.findViewById(R.id.btn_enter)
-        btnClear             = view.findViewById(R.id.btn_clear)
-        btnCommit            = view.findViewById(R.id.btn_commit)
         btnSpace             = view.findViewById(R.id.btn_space)
+        btnNewline           = view.findViewById(R.id.btn_newline)
         btnSettings          = view.findViewById(R.id.btn_settings)
         progressBar          = view.findViewById(R.id.progress_bar)
         layoutNormalControls = view.findViewById(R.id.layout_normal_controls)
@@ -103,12 +101,11 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
 
         btnMic.setOnClickListener { onMicClick() }
-        btnBackspace.setOnClickListener { sendBackspace() }
+        btnBackspace.setOnClickListener { onBackspaceClick() }
         btnBackspace.setOnLongClickListener { clearCurrentWord(); true }
-        btnEnter.setOnClickListener { sendEnter() }
-        btnClear.setOnClickListener { clearPending() }
-        btnCommit.setOnClickListener { commitPending() }
+        btnEnter.setOnClickListener { onEnterClick() }
         btnSpace.setOnClickListener { commitText(" ") }
+        btnNewline.setOnClickListener { commitText("\n") }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
@@ -367,7 +364,7 @@ class VoiceImeService : InputMethodService() {
         pendingText = ""
         collapseSelection()
         if (::tvTranscription.isInitialized) tvTranscription.text = ""
-        if (::btnCommit.isInitialized) updateUi()
+        if (::btnMic.isInitialized) updateUi()
     }
 
     private fun commitText(text: String) { currentInputConnection?.commitText(text, 1) }
@@ -391,29 +388,45 @@ class VoiceImeService : InputMethodService() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    // ── Text actions (dynamic backspace / enter) ──────────────────────────────
+
+    private fun onBackspaceClick() {
+        if (pendingText.isNotEmpty()) clearPending() else sendBackspace()
+    }
+
+    private fun onEnterClick() {
+        if (pendingText.isNotEmpty()) commitPending() else sendEnter()
+    }
+
     // ── UI helpers ────────────────────────────────────────────────────────────
 
     private fun setState(s: State) { state = s; updateUi() }
 
     private fun updateUi() {
         if (!::btnMic.isInitialized) return
+        val hasPending = pendingText.isNotEmpty()
+        // Dynamic labels for backspace / enter
+        btnBackspace.text = if (hasPending) "取消" else "⌫"
+        btnBackspace.textSize = if (hasPending) 14f else 22f
+        btnEnter.text     = if (hasPending) "確認插入" else "↵"
+        btnEnter.textSize = if (hasPending) 13f else 22f
+        btnEnter.setBackgroundResource(if (hasPending) R.drawable.commit_bg else R.drawable.key_bg)
+        btnEnter.setTextColor(
+            ContextCompat.getColor(this, if (hasPending) R.color.ime_accent_text else R.color.ime_key_text)
+        )
+
         when (state) {
             State.IDLE -> {
-                if (pendingText.isEmpty())
-                    tvStatus.text = "點擊麥克風開始語音輸入"
+                if (!hasPending) tvStatus.text = "點擊麥克風開始語音輸入"
                 btnMic.setImageResource(R.drawable.ic_mic)
                 btnMic.alpha = 1f
                 progressBar.visibility = View.GONE
-                btnCommit.isEnabled = pendingText.isNotEmpty()
-                btnClear.isEnabled  = pendingText.isNotEmpty()
             }
             State.LOADING -> {
                 tvStatus.text = "正在載入模型…"
                 btnMic.alpha = 0.4f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = true
-                btnCommit.isEnabled = false
-                btnClear.isEnabled  = false
             }
             State.RECORDING -> {
                 tvStatus.text = "錄音中… 再次點擊提早停止"
@@ -421,16 +434,12 @@ class VoiceImeService : InputMethodService() {
                 btnMic.alpha = 1f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = false
-                btnCommit.isEnabled = false
-                btnClear.isEnabled  = false
             }
             State.PROCESSING -> {
                 tvStatus.text = "辨識中…"
                 btnMic.alpha = 0.4f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = true
-                btnCommit.isEnabled = false
-                btnClear.isEnabled  = false
             }
         }
     }
