@@ -338,7 +338,7 @@ class VoiceImeService : InputMethodService() {
                 val to = etTo.text.toString().trim()
                 if (to.isNotBlank()) {
                     UserDictionary.add(this, selected, to)
-                    applyCandidate(selected, to)
+                    applyCandidate(to)
                     showToast("已新增：「$selected」→「$to」")
                 }
             }
