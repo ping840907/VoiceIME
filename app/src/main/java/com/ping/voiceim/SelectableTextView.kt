@@ -27,11 +27,15 @@ class SelectableTextView @JvmOverloads constructor(
             override fun onLongPress(e: MotionEvent) {
                 val offset = offsetAt(e.x, e.y)
                 if (offset < 0 || text.isEmpty()) return
-                selAnchor  = offset
+                // getOffsetForHorizontal returns the insertion-cursor position which sits
+                // *after* the character when touching its right half; subtract 1 to land
+                // on the character visually under the finger.
+                val charIndex = (offset - 1).coerceAtLeast(0)
+                selAnchor  = charIndex
                 isDragging = true
                 // Prevent the parent HorizontalScrollView from stealing MOVE events
                 parent?.requestDisallowInterceptTouchEvent(true)
-                fire(offset, (offset + 1).coerceAtMost(text.length))
+                fire(charIndex, (charIndex + 1).coerceAtMost(text.length))
             }
         })
 
