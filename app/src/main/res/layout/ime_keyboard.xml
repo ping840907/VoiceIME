@@ -207,23 +207,9 @@
             android:gravity="center_vertical">
 
             <TextView
-                android:id="@+id/btn_add_dict"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="新增替換詞"
-                android:textSize="13sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
                 android:id="@+id/btn_cancel_selection"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="36dp"
-                android:layout_weight="1"
                 android:gravity="center"
                 android:text="取消選取"
                 android:textSize="13sp"

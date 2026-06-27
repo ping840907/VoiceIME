@@ -1,7 +1,6 @@
 package com.ping.voiceim
 
 import android.Manifest
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
@@ -14,9 +13,7 @@ import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
-import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -71,7 +68,6 @@ class VoiceImeService : InputMethodService() {
     private lateinit var layoutCandidates: LinearLayout
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
-    private lateinit var btnAddDict: TextView
     private lateinit var btnCancelSelection: TextView
 
     private enum class State { IDLE, LOADING, RECORDING, PROCESSING }
@@ -94,7 +90,6 @@ class VoiceImeService : InputMethodService() {
         layoutCandidates     = view.findViewById(R.id.layout_candidates)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
-        btnAddDict           = view.findViewById(R.id.btn_add_dict)
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
 
         btnMic.setOnClickListener { onMicClick() }
@@ -105,7 +100,6 @@ class VoiceImeService : InputMethodService() {
         btnCommit.setOnClickListener { commitPending() }
         btnSpace.setOnClickListener { commitText(" ") }
         btnSettings.setOnClickListener { openDictSettings() }
-        btnAddDict.setOnClickListener { showAddDictDialog() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
 
         tvTranscription.onSelectionChanged = { start, end ->
@@ -316,38 +310,6 @@ class VoiceImeService : InputMethodService() {
         chip.chipEndPadding   = (8 * resources.displayMetrics.density)
         chip.isCloseIconVisible = false
         return chip
-    }
-
-    private fun showAddDictDialog() {
-        if (selStart >= selEnd || pendingText.isEmpty()) return
-        val selected = pendingText.substring(
-            selStart.coerceIn(0, pendingText.length),
-            selEnd.coerceIn(0, pendingText.length)
-        )
-
-        val etTo = EditText(themedCtx).apply {
-            hint = "輸入替換詞（如：正確專有名詞）"
-            setSingleLine()
-        }
-        val dp16 = (16 * resources.displayMetrics.density).toInt()
-        etTo.setPadding(dp16, dp16, dp16, dp16)
-
-        val dialog = AlertDialog.Builder(themedCtx)
-            .setTitle("新增替換詞")
-            .setView(etTo)
-            .setPositiveButton("新增並套用") { _, _ ->
-                val to = etTo.text.toString().trim()
-                if (to.isNotBlank()) {
-                    UserDictionary.add(this, selected, to)
-                    applyCandidate(to)
-                    showToast("已新增：「$selected」→「$to」")
-                }
-            }
-            .setNegativeButton("取消", null)
-            .create()
-        // IME services require TYPE_INPUT_METHOD_DIALOG to show a dialog window
-        dialog.window?.setType(WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG)
-        dialog.show()
     }
 
     // ── Text pipeline ─────────────────────────────────────────────────────────
