@@ -116,7 +116,9 @@ class VoiceImeService : InputMethodService() {
             selEnd   = end
             if (start < end && pendingText.isNotEmpty()) {
                 if (layoutCandidates.visibility == View.VISIBLE) {
-                    // Panel already open — just update highlight and label
+                    // New drag while panel is open — reset anchor/focus to new selection
+                    selAnchor = selStart
+                    selFocus  = selEnd - 1
                     updateSelectionHighlight()
                 } else {
                     showCandidatePanel()

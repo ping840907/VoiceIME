@@ -25,17 +25,12 @@ class SelectableTextView @JvmOverloads constructor(
     private val gestureDetector = GestureDetector(context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onLongPress(e: MotionEvent) {
-                val offset = offsetAt(e.x, e.y)
-                if (offset < 0 || text.isEmpty()) return
-                // getOffsetForHorizontal returns the insertion-cursor position which sits
-                // *after* the character when touching its right half; subtract 1 to land
-                // on the character visually under the finger.
-                val charIndex = (offset - 1).coerceAtLeast(0)
-                selAnchor  = charIndex
+                if (text.isEmpty()) return
+                val offset = offsetAt(e.x, e.y).coerceIn(0, text.length - 1)
+                selAnchor  = offset
                 isDragging = true
-                // Prevent the parent HorizontalScrollView from stealing MOVE events
                 parent?.requestDisallowInterceptTouchEvent(true)
-                fire(charIndex, (charIndex + 1).coerceAtMost(text.length))
+                fire(offset, offset + 1)
             }
         })
 
@@ -49,9 +44,8 @@ class SelectableTextView @JvmOverloads constructor(
         gestureDetector.onTouchEvent(event)
         when (event.action) {
             MotionEvent.ACTION_MOVE -> if (isDragging) {
-                val offset = offsetAt(event.x, event.y).coerceIn(0, text.length)
+                val offset = offsetAt(event.x, event.y).coerceIn(0, (text.length - 1).coerceAtLeast(0))
                 val start  = minOf(selAnchor, offset)
-                // always keep at least 1-char range so the panel never collapses mid-drag
                 val end    = (maxOf(selAnchor, offset) + 1).coerceAtMost(text.length)
                 if (end > start) fire(start, end)
             }
