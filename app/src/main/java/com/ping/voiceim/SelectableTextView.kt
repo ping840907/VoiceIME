@@ -29,6 +29,8 @@ class SelectableTextView @JvmOverloads constructor(
                 if (offset < 0 || text.isEmpty()) return
                 selAnchor  = offset
                 isDragging = true
+                // Prevent the parent HorizontalScrollView from stealing MOVE events
+                parent?.requestDisallowInterceptTouchEvent(true)
                 fire(offset, (offset + 1).coerceAtMost(text.length))
             }
         })
@@ -50,7 +52,10 @@ class SelectableTextView @JvmOverloads constructor(
                 if (end > start) fire(start, end)
             }
             MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> isDragging = false
+            MotionEvent.ACTION_CANCEL -> {
+                isDragging = false
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
         }
         return true
     }

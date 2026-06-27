@@ -111,7 +111,12 @@ class VoiceImeService : InputMethodService() {
             selStart = start
             selEnd   = end
             if (start < end && pendingText.isNotEmpty()) {
-                showCandidatePanel()
+                if (layoutCandidates.visibility == View.VISIBLE) {
+                    // Panel already open — just update highlight and label
+                    updateSelectionHighlight()
+                } else {
+                    showCandidatePanel()
+                }
             } else {
                 collapseSelection()
             }
@@ -255,7 +260,7 @@ class VoiceImeService : InputMethodService() {
         } else {
             dict.entries.sortedBy { it.key }.forEach { (_, to) ->
                 makeChip(to).also { chip ->
-                    chip.setOnClickListener { applyCandidate(selected, to) }
+                    chip.setOnClickListener { applyCandidate(to) }
                     llCandidates.addView(chip)
                 }
             }
@@ -265,8 +270,20 @@ class VoiceImeService : InputMethodService() {
         layoutCandidates.visibility     = View.VISIBLE
     }
 
-    private fun applyCandidate(original: String, replacement: String) {
-        val newText = pendingText.replaceFirst(original, replacement)
+    private fun updateSelectionHighlight() {
+        val s = selStart.coerceIn(0, pendingText.length)
+        val e = selEnd.coerceIn(0, pendingText.length)
+        val spannable = SpannableString(pendingText)
+        spannable.setSpan(BackgroundColorSpan(0x4429B6F6), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        tvTranscription.text = spannable
+        tvSelectedRange.text = "選取範圍：「${pendingText.substring(s, e)}」"
+    }
+
+    private fun applyCandidate(replacement: String) {
+        val s = selStart.coerceIn(0, pendingText.length)
+        val e = selEnd.coerceIn(0, pendingText.length)
+        val original = pendingText.substring(s, e)
+        val newText  = pendingText.substring(0, s) + replacement + pendingText.substring(e)
         pendingText = newText
         tvTranscription.text = newText
         collapseSelection()
