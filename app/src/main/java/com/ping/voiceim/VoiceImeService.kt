@@ -51,7 +51,13 @@ class VoiceImeService : InputMethodService() {
 
     // Selection state
     private var selStart = 0
-    private var selEnd   = 0
+    private var selEnd    = 0
+
+    // Anchor/focus model for arrow-key selection adjustment
+    // anchor: the fixed character index set when the panel opens
+    // focus:  the moving character index controlled by ◀/▶
+    private var selAnchor = 0
+    private var selFocus  = 0
 
     // Views
     private lateinit var tvTranscription: SelectableTextView
@@ -241,7 +247,11 @@ class VoiceImeService : InputMethodService() {
         )
         if (selected.isEmpty()) return
 
-        // Highlight selection in preview (suppress callback to avoid re-entry)
+        // Initialise anchor/focus for arrow-key adjustment
+        selAnchor = selStart
+        selFocus  = selEnd - 1
+
+        // Highlight selection in preview
         val spannable = SpannableString(pendingText)
         spannable.setSpan(
             BackgroundColorSpan(0x4429B6F6),
@@ -272,9 +282,16 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun adjustSelection(delta: Int) {
-        val newEnd = (selEnd + delta).coerceIn(selStart + 1, pendingText.length)
-        if (newEnd == selEnd) return
-        selEnd = newEnd
+        val len = pendingText.length
+        selFocus = (selFocus + delta).coerceIn(0, len - 1)
+        // Derive selStart/selEnd from anchor and focus
+        if (selFocus >= selAnchor) {
+            selStart = selAnchor
+            selEnd   = selFocus + 1
+        } else {
+            selStart = selFocus
+            selEnd   = selAnchor + 1
+        }
         updateSelectionHighlight()
     }
 
