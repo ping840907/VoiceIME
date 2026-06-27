@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
@@ -331,7 +332,7 @@ class VoiceImeService : InputMethodService() {
         val dp16 = (16 * resources.displayMetrics.density).toInt()
         etTo.setPadding(dp16, dp16, dp16, dp16)
 
-        AlertDialog.Builder(themedCtx)
+        val dialog = AlertDialog.Builder(themedCtx)
             .setTitle("新增替換詞")
             .setView(etTo)
             .setPositiveButton("新增並套用") { _, _ ->
@@ -343,7 +344,10 @@ class VoiceImeService : InputMethodService() {
                 }
             }
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+        // IME services require TYPE_INPUT_METHOD_DIALOG to show a dialog window
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG)
+        dialog.show()
     }
 
     // ── Text pipeline ─────────────────────────────────────────────────────────
