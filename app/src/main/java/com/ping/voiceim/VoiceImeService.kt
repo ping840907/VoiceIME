@@ -105,11 +105,8 @@ class VoiceImeService : InputMethodService() {
         btnSpace.setOnClickListener { commitText(" ") }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
-        // Tap: expand selection; long-press: shrink selection
-        btnSelExpandLeft.setOnClickListener  { adjustSelection(expandLeft  = true) }
-        btnSelExpandLeft.setOnLongClickListener  { adjustSelection(shrinkLeft  = true); true }
-        btnSelExpandRight.setOnClickListener { adjustSelection(expandRight = true) }
-        btnSelExpandRight.setOnLongClickListener { adjustSelection(shrinkRight = true); true }
+        btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
+        btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
 
         tvTranscription.onSelectionChanged = { start, end ->
             selStart = start
@@ -274,20 +271,10 @@ class VoiceImeService : InputMethodService() {
         layoutCandidates.visibility     = View.VISIBLE
     }
 
-    private fun adjustSelection(
-        expandLeft: Boolean = false, shrinkLeft: Boolean = false,
-        expandRight: Boolean = false, shrinkRight: Boolean = false,
-    ) {
-        val len = pendingText.length
-        var s = selStart; var e = selEnd
-        when {
-            expandLeft  -> s = (s - 1).coerceAtLeast(0)
-            shrinkLeft  -> s = (s + 1).coerceAtMost(e - 1)
-            expandRight -> e = (e + 1).coerceAtMost(len)
-            shrinkRight -> e = (e - 1).coerceAtLeast(s + 1)
-        }
-        if (s >= e) return
-        selStart = s; selEnd = e
+    private fun adjustSelection(delta: Int) {
+        val newEnd = (selEnd + delta).coerceIn(selStart + 1, pendingText.length)
+        if (newEnd == selEnd) return
+        selEnd = newEnd
         updateSelectionHighlight()
     }
 
