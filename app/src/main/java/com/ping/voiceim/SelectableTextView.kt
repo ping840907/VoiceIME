@@ -45,8 +45,9 @@ class SelectableTextView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> if (isDragging) {
                 val offset = offsetAt(event.x, event.y).coerceIn(0, text.length)
                 val start  = minOf(selAnchor, offset)
-                val end    = maxOf(selAnchor, offset).coerceAtMost(text.length)
-                fire(start, end)
+                // always keep at least 1-char range so the panel never collapses mid-drag
+                val end    = (maxOf(selAnchor, offset) + 1).coerceAtMost(text.length)
+                if (end > start) fire(start, end)
             }
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL -> isDragging = false
