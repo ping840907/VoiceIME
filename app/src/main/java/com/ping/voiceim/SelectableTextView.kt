@@ -18,12 +18,19 @@ class SelectableTextView @JvmOverloads constructor(
 ) : TextView(context, attrs, defStyleAttr) {
 
     var onSelectionChanged: ((selStart: Int, selEnd: Int) -> Unit)? = null
+    var onSingleTap: ((offset: Int) -> Unit)? = null
 
     private var selAnchor  = -1
     private var isDragging = false
 
     private val gestureDetector = GestureDetector(context,
         object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (text.isEmpty()) return false
+                val offset = offsetAt(e.x, e.y).coerceIn(0, text.length)
+                onSingleTap?.invoke(offset)
+                return true
+            }
             override fun onLongPress(e: MotionEvent) {
                 if (text.isEmpty()) return
                 val offset = offsetAt(e.x, e.y).coerceIn(0, text.length - 1)

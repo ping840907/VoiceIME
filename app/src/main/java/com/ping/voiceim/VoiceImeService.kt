@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
@@ -79,6 +80,10 @@ class VoiceImeService : InputMethodService() {
     // focus:  the moving character index controlled by ◀/▶
     private var selAnchor = 0
     private var selFocus  = 0
+
+    // Cursor insertion mode (no selection, ◀/▶ move insertion point)
+    private var isCursorMode = false
+    private var cursorPos    = 0
 
     // Views
     private lateinit var tvTranscription: SelectableTextView
@@ -150,11 +155,27 @@ class VoiceImeService : InputMethodService() {
         btnSpace.setOnClickListener { commitText(" ") }
         btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
-        btnCancelSelection.setOnClickListener { collapseSelection() }
+        btnCancelSelection.setOnClickListener {
+            if (isCursorMode) {
+                collapseSelection()
+            } else {
+                // selection mode → transition to cursor mode at selection start
+                cursorPos = selStart
+                selStart = 0; selEnd = 0
+                showCursorPanel()
+            }
+        }
         btnCandidateMic.setOnClickListener { collapseSelection() }
         btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
+
+        tvTranscription.onSingleTap = { offset ->
+            if (pendingText.isNotEmpty()) {
+                cursorPos = offset.coerceIn(0, pendingText.length)
+                showCursorPanel()
+            }
+        }
 
         tvTranscription.onSelectionChanged = { start, end ->
             selStart = start
@@ -164,11 +185,12 @@ class VoiceImeService : InputMethodService() {
                     // New drag while panel is open — reset anchor/focus to new selection
                     selAnchor = selStart
                     selFocus  = selEnd - 1
+                    isCursorMode = false
                     updateSelectionHighlight()
                 } else {
                     showCandidatePanel()
                 }
-            } else {
+            } else if (layoutCandidates.visibility != View.VISIBLE) {
                 collapseSelection()
             }
         }
@@ -366,23 +388,30 @@ class VoiceImeService : InputMethodService() {
         )
         if (selected.isEmpty()) return
 
-        // Initialise anchor/focus for arrow-key adjustment
+        isCursorMode = false
         selAnchor = selStart
         selFocus  = selEnd - 1
 
-        // Highlight selection in preview
-        val spannable = SpannableString(pendingText)
-        spannable.setSpan(
-            BackgroundColorSpan(0x4429B6F6),
-            selStart.coerceIn(0, pendingText.length),
-            selEnd.coerceIn(0, pendingText.length),
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        tvTranscription.text = spannable
+        updateSelectionHighlight()
+        populateCandidateChips()
+        btnCancelSelection.text = "取消選取"
+        layoutNormalControls.visibility = View.GONE
+        layoutCandidates.visibility     = View.VISIBLE
+    }
 
-        tvSelectedRange.text = "選取範圍：「$selected」"
+    private fun showCursorPanel() {
+        if (pendingText.isEmpty()) return
+        isCursorMode = true
+        cursorPos = cursorPos.coerceIn(0, pendingText.length)
+        updateCursorHighlight()
+        populateCandidateChips()
+        btnCancelSelection.text = "關閉"
+        layoutNormalControls.visibility = View.GONE
+        layoutDictInsert.visibility     = View.GONE
+        layoutCandidates.visibility     = View.VISIBLE
+    }
 
-        // Populate candidate chips from user dictionary
+    private fun populateCandidateChips() {
         llCandidates.removeAllViews()
         val dict = UserDictionary.load(this)
         if (dict.isEmpty()) {
@@ -395,23 +424,24 @@ class VoiceImeService : InputMethodService() {
                 }
             }
         }
-
-        layoutNormalControls.visibility = View.GONE
-        layoutCandidates.visibility     = View.VISIBLE
     }
 
     private fun adjustSelection(delta: Int) {
-        val len = pendingText.length
-        selFocus = (selFocus + delta).coerceIn(0, len - 1)
-        // Derive selStart/selEnd from anchor and focus
-        if (selFocus >= selAnchor) {
-            selStart = selAnchor
-            selEnd   = selFocus + 1
+        if (isCursorMode) {
+            cursorPos = (cursorPos + delta).coerceIn(0, pendingText.length)
+            updateCursorHighlight()
         } else {
-            selStart = selFocus
-            selEnd   = selAnchor + 1
+            val len = pendingText.length
+            selFocus = (selFocus + delta).coerceIn(0, len - 1)
+            if (selFocus >= selAnchor) {
+                selStart = selAnchor
+                selEnd   = selFocus + 1
+            } else {
+                selStart = selFocus
+                selEnd   = selAnchor + 1
+            }
+            updateSelectionHighlight()
         }
-        updateSelectionHighlight()
     }
 
     private fun updateSelectionHighlight() {
@@ -423,18 +453,43 @@ class VoiceImeService : InputMethodService() {
         tvSelectedRange.text = "選取範圍：「${pendingText.substring(s, e)}」"
     }
 
+    private fun updateCursorHighlight() {
+        val pos = cursorPos.coerceIn(0, pendingText.length)
+        val withCursor = pendingText.substring(0, pos) + "|" + pendingText.substring(pos)
+        val spannable  = SpannableString(withCursor)
+        spannable.setSpan(
+            ForegroundColorSpan(ContextCompat.getColor(this, R.color.ime_accent)),
+            pos, pos + 1,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        tvTranscription.text = spannable
+
+        val before = if (pos > 0) pendingText[pos - 1].toString() else ""
+        val after  = if (pos < pendingText.length) pendingText[pos].toString() else ""
+        tvSelectedRange.text = "插入位置：「${before}│${after}」"
+    }
+
     private fun applyCandidate(replacement: String) {
-        val s = selStart.coerceIn(0, pendingText.length)
-        val e = selEnd.coerceIn(0, pendingText.length)
-        val original = pendingText.substring(s, e)
-        val newText  = pendingText.substring(0, s) + replacement + pendingText.substring(e)
-        pendingText = newText
-        tvTranscription.text = newText
-        collapseSelection()
-        tvStatus.text = "已替換「$original」→「$replacement」"
+        if (isCursorMode) {
+            val pos = cursorPos.coerceIn(0, pendingText.length)
+            pendingText = pendingText.substring(0, pos) + replacement + pendingText.substring(pos)
+            cursorPos   = pos + replacement.length
+            updateCursorHighlight()
+            populateCandidateChips()
+            tvStatus.text = "已插入「$replacement」"
+        } else {
+            val s = selStart.coerceIn(0, pendingText.length)
+            val e = selEnd.coerceIn(0, pendingText.length)
+            val original = pendingText.substring(s, e)
+            pendingText  = pendingText.substring(0, s) + replacement + pendingText.substring(e)
+            tvTranscription.text = pendingText
+            collapseSelection()
+            tvStatus.text = "已替換「$original」→「$replacement」"
+        }
     }
 
     private fun collapseSelection() {
+        isCursorMode = false
         selStart = 0; selEnd = 0
         if (!::layoutCandidates.isInitialized) return
         layoutCandidates.visibility     = View.GONE
