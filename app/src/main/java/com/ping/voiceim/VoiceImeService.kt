@@ -151,7 +151,7 @@ class VoiceImeService : InputMethodService() {
         btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
-        btnCandidateMic.setOnClickListener { collapseSelection(); onMicClick() }
+        btnCandidateMic.setOnClickListener { collapseSelection() }
         btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
