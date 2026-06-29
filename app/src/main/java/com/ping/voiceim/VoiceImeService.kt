@@ -99,6 +99,7 @@ class VoiceImeService : InputMethodService() {
     private lateinit var llCandidates: ChipGroup
     private lateinit var btnSelExpandLeft: TextView
     private lateinit var btnSelExpandRight: TextView
+    private lateinit var btnCandidateMic: TextView
     private lateinit var btnCancelSelection: TextView
 
     private enum class State { IDLE, LOADING, RECORDING, PROCESSING }
@@ -125,6 +126,7 @@ class VoiceImeService : InputMethodService() {
         llCandidates         = view.findViewById(R.id.ll_candidates)
         btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
         btnSelExpandRight    = view.findViewById(R.id.btn_sel_expand_right)
+        btnCandidateMic      = view.findViewById(R.id.btn_candidate_mic)
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
 
         btnMic.setOnClickListener { onMicClick() }
@@ -149,6 +151,7 @@ class VoiceImeService : InputMethodService() {
         btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
+        btnCandidateMic.setOnClickListener { collapseSelection(); onMicClick() }
         btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
