@@ -89,6 +89,11 @@ class XAsrEngine(private val context: Context) {
         stream.acceptWaveform(samples, ModelConfig.ASR_SAMPLE_RATE)
     }
 
+    /** Signal end of audio input so the encoder can flush its state. */
+    fun inputFinished(stream: OnlineStream) {
+        stream.inputFinished()
+    }
+
     /** Decode all pending frames in the stream. */
     fun decode(stream: OnlineStream) {
         recognizer?.decode(stream)
