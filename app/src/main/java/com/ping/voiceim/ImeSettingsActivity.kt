@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -43,6 +44,16 @@ class ImeSettingsActivity : AppCompatActivity() {
             imm.showInputMethodPicker()
         }
 
+        // Engine selection
+        val rg = findViewById<RadioGroup>(R.id.rg_engine)
+        val currentEngine = ModelConfig.selectedEngine(this)
+        rg.check(if (currentEngine == ModelConfig.ENGINE_X_ASR) R.id.rb_xasr else R.id.rb_qwen3)
+        rg.setOnCheckedChangeListener { _, checkedId ->
+            val engine = if (checkedId == R.id.rb_xasr) ModelConfig.ENGINE_X_ASR else ModelConfig.ENGINE_QWEN3
+            ModelConfig.setSelectedEngine(this, engine)
+            updateModelStatus()
+        }
+
         updateModelStatus()
         updateMicStatus()
     }
@@ -62,6 +73,11 @@ class ImeSettingsActivity : AppCompatActivity() {
 
     private fun updateModelStatus() {
         val tv = findViewById<TextView>(R.id.tv_model_status)
+        val engine = ModelConfig.selectedEngine(this)
+        tv.text = if (engine == ModelConfig.ENGINE_X_ASR) buildXAsrStatus() else buildQwen3Status()
+    }
+
+    private fun buildQwen3Status(): String {
         val dir = ModelConfig.qwen3AsrDir(this)
         val files = listOf(
             ModelConfig.qwen3AsrConvFrontendPath(this),
@@ -69,20 +85,41 @@ class ImeSettingsActivity : AppCompatActivity() {
             ModelConfig.qwen3AsrDecoderPath(this),
         )
         val missing = files.filter { !File(it).exists() }
-        if (missing.isEmpty() && File(ModelConfig.qwen3AsrTokenizerDir(this)).isDirectory) {
-            tv.text = "✓ 模型已就緒\n路徑: $dir"
-        } else {
-            tv.text = buildString {
-                append("⚠ 模型檔案未找到，請將模型放置於：\n$dir\n\n")
-                append("需要的檔案：\n")
-                append("  conv_frontend.onnx\n")
-                append("  encoder.int8.onnx\n")
-                append("  decoder.int8.onnx\n")
-                append("  tokenizer/  (目錄)\n\n")
-                append("下載來源：\n")
-                append("https://github.com/k2-fsa/sherpa-onnx/releases\n")
-                append("(搜尋 sherpa-onnx-qwen3-asr-0.6B-int8)")
-            }
+        return if (missing.isEmpty() && File(ModelConfig.qwen3AsrTokenizerDir(this)).isDirectory) {
+            "✓ Qwen3-ASR 模型已就緒\n路徑: $dir"
+        } else buildString {
+            append("⚠ Qwen3-ASR 模型未找到，請放置於：\n$dir\n\n")
+            append("需要的檔案：\n")
+            append("  conv_frontend.onnx\n")
+            append("  encoder.int8.onnx\n")
+            append("  decoder.int8.onnx\n")
+            append("  tokenizer/  (目錄)\n\n")
+            append("下載來源：\n")
+            append("https://github.com/k2-fsa/sherpa-onnx/releases\n")
+            append("(搜尋 sherpa-onnx-qwen3-asr-0.6B-int8)")
+        }
+    }
+
+    private fun buildXAsrStatus(): String {
+        val dir = ModelConfig.xAsrDir(this)
+        val files = listOf(
+            ModelConfig.xAsrEncoderPath(this),
+            ModelConfig.xAsrDecoderPath(this),
+            ModelConfig.xAsrJoinerPath(this),
+            ModelConfig.xAsrTokensPath(this),
+        )
+        val missing = files.filter { !File(it).exists() }
+        return if (missing.isEmpty()) {
+            "✓ X-ASR 模型已就緒\n路徑: $dir"
+        } else buildString {
+            append("⚠ X-ASR 模型未找到，請放置於：\n$dir\n\n")
+            append("需要的檔案：\n")
+            append("  encoder.int8.onnx\n")
+            append("  decoder.onnx\n")
+            append("  joiner.int8.onnx\n")
+            append("  tokens.txt\n\n")
+            append("下載來源：\n")
+            append("https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m")
         }
     }
 }

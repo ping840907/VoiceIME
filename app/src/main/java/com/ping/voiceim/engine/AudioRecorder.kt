@@ -99,6 +99,60 @@ class AudioRecorder {
 
     fun stopEarly() { shouldStop = true }
 
+    @SuppressLint("MissingPermission")
+    suspend fun recordStreaming(
+        maxSeconds:       Float = ModelConfig.MAX_RECORD_SECONDS,
+        onChunk:          (FloatArray) -> Unit,
+        onRmsUpdate:      ((Float) -> Unit)? = null,
+    ): StopReason = withContext(Dispatchers.IO) {
+
+        shouldStop = false
+
+        val bufSize = maxOf(
+            AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CFG, AUDIO_FORMAT),
+            CHUNK_FRAMES * 2
+        )
+
+        val recorder = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            SAMPLE_RATE, CHANNEL_CFG, AUDIO_FORMAT, bufSize
+        )
+
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "AudioRecord init failed")
+            recorder.release()
+            return@withContext StopReason.ERROR
+        }
+
+        val maxFrames   = (maxSeconds * SAMPLE_RATE).toInt()
+        var totalFrames = 0
+        val chunkBuffer = ShortArray(CHUNK_FRAMES)
+        var stopReason  = StopReason.TIMEOUT
+
+        try {
+            recorder.startRecording()
+            while (coroutineContext.isActive && !shouldStop) {
+                val read = recorder.read(chunkBuffer, 0, CHUNK_FRAMES)
+                if (read <= 0) continue
+
+                val floats = FloatArray(read) { chunkBuffer[it] / 32768.0f }
+                onChunk(floats)
+
+                val rms = computeRms(chunkBuffer, read)
+                onRmsUpdate?.invoke(rms)
+
+                totalFrames += read
+                if (totalFrames >= maxFrames) { stopReason = StopReason.TIMEOUT; break }
+            }
+            if (shouldStop) stopReason = StopReason.MANUAL
+        } finally {
+            recorder.stop()
+            recorder.release()
+        }
+
+        stopReason
+    }
+
     private fun computeRms(buf: ShortArray, len: Int): Float {
         var sum = 0.0
         for (i in 0 until len) sum += (buf[i] / 32768.0) * (buf[i] / 32768.0)

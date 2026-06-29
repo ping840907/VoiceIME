@@ -27,7 +27,10 @@ import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.ping.voiceim.engine.AudioRecorder
+import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.Qwen3AsrEngine
+import com.ping.voiceim.engine.XAsrEngine
+import com.k2fsa.sherpa.onnx.OnlineStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,13 +43,17 @@ class VoiceImeService : InputMethodService() {
     // IME runs under the bare system theme; wrap it so AppCompat/Material widgets inflate correctly.
     private val themedCtx by lazy { ContextThemeWrapper(this, R.style.Theme_VoiceAssistant) }
 
-    private val scope    = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val asr      = lazy { Qwen3AsrEngine(this) }
-    private val recorder = AudioRecorder()
+    private val scope     = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val qwen3Asr  = lazy { Qwen3AsrEngine(this) }
+    private val xAsr      = lazy { XAsrEngine(this) }
+    private val recorder  = AudioRecorder()
 
     private var recordingJob: Job? = null
     private var isRecording = false
     private var pendingText = ""
+
+    // Active streaming session for X-ASR
+    private var activeStream: OnlineStream? = null
 
     // Repeat-delete for backspace long-press
     private val repeatDeleteHandler = Handler(Looper.getMainLooper())
@@ -181,7 +188,8 @@ class VoiceImeService : InputMethodService() {
     override fun onDestroy() {
         super.onDestroy()
         cancelRecording()
-        if (asr.isInitialized()) asr.value.release()
+        if (qwen3Asr.isInitialized()) qwen3Asr.value.release()
+        if (xAsr.isInitialized()) xAsr.value.release()
         scope.coroutineContext[Job]?.cancel()
     }
 
@@ -200,17 +208,33 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun preloadModel() {
-        if (asr.value.isLoaded()) return
-        setState(State.LOADING)
-        scope.launch {
-            val result = asr.value.load()
-            setState(State.IDLE)
-            if (result.success) {
-                val providerLabel = providerDisplayName(result.provider)
-                tvStatus.text = "模型就緒（$providerLabel）"
-            } else {
-                Log.e(TAG, "Model load failed: ${result.error}")
-                showToast("模型載入失敗: ${result.error}")
+        val engine = ModelConfig.selectedEngine(this)
+        if (engine == ModelConfig.ENGINE_X_ASR) {
+            if (xAsr.value.isLoaded()) return
+            setState(State.LOADING)
+            scope.launch {
+                val result = xAsr.value.load()
+                setState(State.IDLE)
+                if (result.success) {
+                    tvStatus.text = "X-ASR 模型就緒"
+                } else {
+                    Log.e(TAG, "X-ASR load failed: ${result.error}")
+                    showToast("X-ASR 模型載入失敗: ${result.error}")
+                }
+            }
+        } else {
+            if (qwen3Asr.value.isLoaded()) return
+            setState(State.LOADING)
+            scope.launch {
+                val result = qwen3Asr.value.load()
+                setState(State.IDLE)
+                if (result.success) {
+                    val providerLabel = providerDisplayName(result.provider)
+                    tvStatus.text = "模型就緒（$providerLabel）"
+                } else {
+                    Log.e(TAG, "Model load failed: ${result.error}")
+                    showToast("模型載入失敗: ${result.error}")
+                }
             }
         }
     }
@@ -234,8 +258,17 @@ class VoiceImeService : InputMethodService() {
             startActivity(intent)
             return
         }
-        if (!asr.value.isLoaded()) { preloadModel(); return }
+        val engine = ModelConfig.selectedEngine(this)
+        if (engine == ModelConfig.ENGINE_X_ASR) {
+            if (!xAsr.value.isLoaded()) { preloadModel(); return }
+            startStreamingRecording()
+        } else {
+            if (!qwen3Asr.value.isLoaded()) { preloadModel(); return }
+            startOfflineRecording()
+        }
+    }
 
+    private fun startOfflineRecording() {
         isRecording = true
         collapseSelection()
         setState(State.RECORDING)
@@ -247,7 +280,7 @@ class VoiceImeService : InputMethodService() {
             isRecording = false
             if (recording.samples.isNotEmpty()) {
                 setState(State.PROCESSING)
-                val raw  = asr.value.transcribe(recording.samples)
+                val raw  = qwen3Asr.value.transcribe(recording.samples)
                 val text = if (raw.isNotBlank()) postProcess(raw) else ""
                 onTranscriptionDone(text)
             } else {
@@ -256,9 +289,58 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
+    private fun startStreamingRecording() {
+        val engine = xAsr.value
+        val stream = engine.createStream() ?: run {
+            showToast("無法建立 X-ASR 串流")
+            return
+        }
+        activeStream = stream
+
+        isRecording = true
+        collapseSelection()
+        setState(State.RECORDING)
+
+        recordingJob = scope.launch {
+            withContext(Dispatchers.IO) {
+                recorder.recordStreaming(
+                    onChunk = { chunk ->
+                        engine.acceptWaveform(stream, chunk)
+                        while (engine.isReady(stream)) {
+                            engine.decode(stream)
+                        }
+                        val partial = engine.getResult(stream)
+                        if (partial.isNotBlank()) {
+                            withContext(Dispatchers.Main) {
+                                tvTranscription.text = partial
+                                pendingText = partial
+                            }
+                        }
+                        if (engine.isEndpoint(stream)) {
+                            engine.reset(stream)
+                        }
+                    },
+                    onRmsUpdate = { rms -> updateRmsBar(rms) }
+                )
+            }
+
+            isRecording = false
+            activeStream = null
+
+            // Final decode pass
+            engine.decode(stream)
+            val finalText = engine.getResult(stream).trim()
+            runCatching { stream.release() }
+
+            onTranscriptionDone(finalText)
+        }
+    }
+
     private fun cancelRecording() {
         recorder.stopEarly()
         recordingJob?.cancel()
+        activeStream?.let { runCatching { it.release() } }
+        activeStream = null
         isRecording = false
         if (state == State.RECORDING) setState(State.IDLE)
     }
@@ -379,13 +461,13 @@ class VoiceImeService : InputMethodService() {
     // ── Text pipeline ─────────────────────────────────────────────────────────
 
     private fun postProcess(raw: String): String {
-        val traditional = try {
+        if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) return raw
+        return try {
             ZhConverterUtil.toTraditional(raw)
         } catch (ex: Exception) {
             Log.w(TAG, "OpenCC failed: ${ex.message}")
             raw
         }
-        return traditional
     }
 
     // ── Text actions ──────────────────────────────────────────────────────────

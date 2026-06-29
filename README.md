@@ -88,7 +88,9 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 
 ## 推理引擎
 
-### ASR（sherpa-onnx）
+兩個引擎可在設定頁切換，選擇持久化於 `SharedPreferences("asr_engine_selection")`。
+
+### Qwen3-ASR（離線，預設）
 
 | Provider 優先順序 | 說明 |
 |-----------------|------|
@@ -97,17 +99,25 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 
 活躍 provider 持久化於 `SharedPreferences("asr_engine")`，可在 `ImeSettingsActivity` 查看。
 
+錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。
+
+### X-ASR（串流，原生繁體）
+
+基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 1024-frame chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
+
+使用 CPU provider（NNAPI 對 transducer 支援有限）。
+
 ### 繁簡轉換
 
-ASR 模型（Qwen3）以簡體中文訓練，輸出為簡體。使用 **opencc4j 1.8.1**（`ZhConverterUtil.toTraditional()`）進行後處理轉換為繁體中文，在 `postProcess()` 中呼叫。
-
-> 注意：opencc4j 轉換在 JVM 層完成，不影響 sherpa-onnx 原生推理速度。
+僅 Qwen3 引擎套用 **opencc4j 1.8.1**（`ZhConverterUtil.toTraditional()`）。X-ASR 引擎直接輸出繁體中文，`postProcess()` 會根據選取的引擎決定是否呼叫 opencc4j。
 
 ---
 
 ## 模型安裝
 
 模型放置於 App 外部專用儲存（無需 READ_EXTERNAL_STORAGE）：
+
+### Qwen3-ASR
 
 ```
 /sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr/
@@ -131,6 +141,25 @@ sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
 
 ```bash
 adb push qwen3_asr/ \
+  /sdcard/Android/data/com.ping.voiceim.debug/files/models/
+```
+
+### X-ASR
+
+```
+/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/x_asr/
+├── encoder.int8.onnx
+├── decoder.onnx
+├── joiner.int8.onnx
+└── tokens.txt
+```
+
+**下載來源**：[Luigi/x-asr-zh-tw-en-streaming-ft75m](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)
+
+推送至裝置：
+
+```bash
+adb push x_asr/ \
   /sdcard/Android/data/com.ping.voiceim.debug/files/models/
 ```
 
@@ -207,10 +236,11 @@ app/src/main/java/com/ping/voiceim/
 ├── SelectableTextView.kt       # 自製長按選取 TextView
 ├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝
 ├── DictSettingsActivity.kt     # 詞彙管理頁面
-├── ImeSettingsActivity.kt      # ASR provider 狀態顯示
+├── ImeSettingsActivity.kt      # 設定頁（引擎選擇、模型狀態）
 └── engine/
-    ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝
-    ├── AudioRecorder.kt        # 麥克風錄音 + VAD
+    ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝（離線）
+    ├── XAsrEngine.kt           # sherpa-onnx X-ASR 封裝（串流）
+    ├── AudioRecorder.kt        # 麥克風錄音 + VAD（支援離線與串流模式）
     └── ModelConfig.kt          # 模型路徑與參數常數
 ```
 
