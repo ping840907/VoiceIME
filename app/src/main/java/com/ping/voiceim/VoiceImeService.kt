@@ -709,7 +709,7 @@ class VoiceImeService : InputMethodService() {
 
         when (state) {
             State.IDLE -> {
-                if (!hasPending) tvStatus.text = "點擊麥克風開始語音輸入"
+                tvStatus.text = if (hasPending) "" else "點擊麥克風開始語音輸入"
                 btnMic.setImageResource(R.drawable.ic_mic)
                 btnMic.alpha = 1f
                 progressBar.visibility = View.GONE
