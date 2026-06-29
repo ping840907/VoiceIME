@@ -7,7 +7,6 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.os.Looper
 import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
