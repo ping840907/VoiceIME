@@ -7,6 +7,7 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.Looper
 import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
@@ -174,7 +175,6 @@ class VoiceImeService : InputMethodService() {
                 }
             }
         }
-        btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
 
@@ -344,7 +344,7 @@ class VoiceImeService : InputMethodService() {
                         }
                         val partial = engine.getResult(stream)
                         if (partial.isNotBlank()) {
-                            withContext(Dispatchers.Main) {
+                            Handler(Looper.getMainLooper()).post {
                                 tvTranscription.text = partial
                                 pendingText = partial
                             }
