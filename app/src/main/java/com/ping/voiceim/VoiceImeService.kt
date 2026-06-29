@@ -359,9 +359,13 @@ class VoiceImeService : InputMethodService() {
             isRecording = false
             activeStream = null
 
-            // Signal end of audio then flush remaining frames
+            // Signal end of audio then drain all remaining frames
             runCatching { engine.inputFinished(stream) }
-            runCatching { engine.decode(stream) }
+            runCatching {
+                while (engine.isReady(stream)) {
+                    engine.decode(stream)
+                }
+            }
             val finalText = engine.getResult(stream).trim()
             runCatching { stream.release() }
 
