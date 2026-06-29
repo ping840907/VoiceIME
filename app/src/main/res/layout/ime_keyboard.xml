@@ -100,7 +100,7 @@
                 android:background="@drawable/key_bg" />
         </LinearLayout>
 
-        <!-- Bottom row: settings | space | dict-insert toggle -->
+        <!-- Bottom row: settings | space | dict toggle -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"
@@ -148,7 +148,11 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ── Candidate panel (shown when text is selected) ──────────────── -->
+    <!-- ── Candidate panel ────────────────────────────────────────────────
+         Used for three modes:
+           • selection mode  (long-press drag)
+           • cursor mode     (single tap)
+           • dict mode       (詞彙 key)                                   -->
     <LinearLayout
         android:id="@+id/layout_candidates"
         android:layout_width="match_parent"
@@ -157,7 +161,7 @@
         android:visibility="gone"
         android:background="@color/ime_bg">
 
-        <!-- Selected text label -->
+        <!-- Context label (changes per mode) -->
         <TextView
             android:id="@+id/tv_selected_range"
             android:layout_width="match_parent"
@@ -169,7 +173,7 @@
             android:textColor="@color/ime_status_text"
             android:singleLine="true" />
 
-        <!-- Candidate chips — wraps to multiple lines -->
+        <!-- Candidate / dict chips -->
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -236,86 +240,16 @@
             <Space android:layout_width="6dp" android:layout_height="0dp" />
 
             <TextView
-                android:id="@+id/btn_candidate_mic"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="🎙️"
-                android:textSize="18sp"
-                android:background="@drawable/key_bg" />
-
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
                 android:id="@+id/btn_cancel_selection"
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_weight="2"
                 android:gravity="center"
-                android:text="取消選取"
+                android:text="關閉"
                 android:textSize="13sp"
                 android:textColor="@color/ime_key_text"
                 android:background="@drawable/key_bg" />
         </LinearLayout>
-    </LinearLayout>
-
-    <!-- ── Dict insert panel (shown when user taps 詞彙 key) ────────────── -->
-    <LinearLayout
-        android:id="@+id/layout_dict_insert"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone"
-        android:background="@color/ime_bg">
-
-        <!-- Header: label + close -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="8dp"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="點擊詞彙直接插入"
-                android:textSize="12sp"
-                android:textColor="@color/ime_status_text" />
-
-            <TextView
-                android:id="@+id/btn_close_dict_insert"
-                android:layout_width="wrap_content"
-                android:layout_height="30dp"
-                android:gravity="center"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="關閉"
-                android:textSize="12sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-        </LinearLayout>
-
-        <!-- Dict word chips -->
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="96dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="8dp">
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/ll_dict_insert_chips"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="4dp"
-                app:chipSpacingVertical="2dp"
-                xmlns:app="http://schemas.android.com/apk/res-auto" />
-        </ScrollView>
     </LinearLayout>
 
 </LinearLayout>

@@ -86,8 +86,11 @@ class VoiceImeService : InputMethodService() {
     private var cursorPos    = 0
 
     // Shift mode: ◀/▶ extend selection from the anchor set when shift was enabled
-    private var isShiftOn  = false
+    private var isShiftOn   = false
     private var shiftAnchor = 0
+
+    // Dict mode: 詞彙 key was tapped; chips commitText directly
+    private var isDictMode = false
 
     // Views
     private lateinit var tvTranscription: SelectableTextView
@@ -101,15 +104,11 @@ class VoiceImeService : InputMethodService() {
     private lateinit var progressBar: ProgressBar
     private lateinit var layoutNormalControls: LinearLayout
     private lateinit var layoutCandidates: LinearLayout
-    private lateinit var layoutDictInsert: LinearLayout
-    private lateinit var llDictInsertChips: ChipGroup
-    private lateinit var btnCloseDictInsert: TextView
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
     private lateinit var btnShift: TextView
     private lateinit var btnSelExpandLeft: TextView
     private lateinit var btnSelExpandRight: TextView
-    private lateinit var btnCandidateMic: TextView
     private lateinit var btnCancelSelection: TextView
 
     private enum class State { IDLE, LOADING, RECORDING, PROCESSING }
@@ -129,15 +128,11 @@ class VoiceImeService : InputMethodService() {
         progressBar          = view.findViewById(R.id.progress_bar)
         layoutNormalControls = view.findViewById(R.id.layout_normal_controls)
         layoutCandidates     = view.findViewById(R.id.layout_candidates)
-        layoutDictInsert     = view.findViewById(R.id.layout_dict_insert)
-        llDictInsertChips    = view.findViewById(R.id.ll_dict_insert_chips)
-        btnCloseDictInsert   = view.findViewById(R.id.btn_close_dict_insert)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
         btnShift             = view.findViewById(R.id.btn_shift)
         btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
         btnSelExpandRight    = view.findViewById(R.id.btn_sel_expand_right)
-        btnCandidateMic      = view.findViewById(R.id.btn_candidate_mic)
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
 
         btnMic.setOnClickListener { onMicClick() }
@@ -159,25 +154,26 @@ class VoiceImeService : InputMethodService() {
         }
         btnEnter.setOnClickListener { onEnterClick() }
         btnSpace.setOnClickListener { commitText(" ") }
-        btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
+        btnDictInsert.setOnClickListener { showDictPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
         btnShift.setOnClickListener { toggleShift() }
         btnCancelSelection.setOnClickListener {
-            if (isCursorMode && !isShiftOn) {
-                collapseSelection()
-            } else if (isShiftOn) {
-                // cancel shift selection → back to cursor at anchor
-                cursorPos = shiftAnchor
-                setShift(false)
-                updateCursorHighlight()
-            } else {
-                // long-press selection mode → transition to cursor mode at selection start
-                cursorPos = selStart
-                selStart = 0; selEnd = 0
-                showCursorPanel()
+            when {
+                isDictMode           -> collapseSelection()
+                isCursorMode && !isShiftOn -> collapseSelection()
+                isShiftOn            -> {
+                    cursorPos = shiftAnchor
+                    setShift(false)
+                    updateCursorHighlight()
+                }
+                else                 -> {
+                    // long-press selection → transition to cursor mode at selection start
+                    cursorPos = selStart
+                    selStart = 0; selEnd = 0
+                    showCursorPanel()
+                }
             }
         }
-        btnCandidateMic.setOnClickListener { collapseSelection() }
         btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
@@ -401,12 +397,16 @@ class VoiceImeService : InputMethodService() {
         if (selected.isEmpty()) return
 
         isCursorMode = false
+        isDictMode   = false
         selAnchor = selStart
         selFocus  = selEnd - 1
 
         updateSelectionHighlight()
         populateCandidateChips()
         btnCancelSelection.text = "取消選取"
+        btnShift.visibility         = View.VISIBLE
+        btnSelExpandLeft.visibility  = View.VISIBLE
+        btnSelExpandRight.visibility = View.VISIBLE
         layoutNormalControls.visibility = View.GONE
         layoutCandidates.visibility     = View.VISIBLE
     }
@@ -414,13 +414,16 @@ class VoiceImeService : InputMethodService() {
     private fun showCursorPanel() {
         if (pendingText.isEmpty()) return
         isCursorMode = true
+        isDictMode   = false
         setShift(false)
         cursorPos = cursorPos.coerceIn(0, pendingText.length)
         updateCursorHighlight()
         populateCandidateChips()
         btnCancelSelection.text = "關閉"
+        btnShift.visibility         = View.VISIBLE
+        btnSelExpandLeft.visibility  = View.VISIBLE
+        btnSelExpandRight.visibility = View.VISIBLE
         layoutNormalControls.visibility = View.GONE
-        layoutDictInsert.visibility     = View.GONE
         layoutCandidates.visibility     = View.VISIBLE
     }
 
@@ -540,6 +543,11 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun applyCandidate(replacement: String) {
+        if (isDictMode) {
+            commitText(replacement)
+            collapseSelection()
+            return
+        }
         if (isShiftOn && selStart < selEnd) {
             // replace shift selection
             val s = selStart.coerceIn(0, pendingText.length)
@@ -571,9 +579,15 @@ class VoiceImeService : InputMethodService() {
 
     private fun collapseSelection() {
         isCursorMode = false
+        isDictMode   = false
         setShift(false)
         selStart = 0; selEnd = 0
         if (!::layoutCandidates.isInitialized) return
+        // restore buttons hidden in dict mode
+        btnShift.visibility         = View.VISIBLE
+        btnSelExpandLeft.visibility  = View.VISIBLE
+        btnSelExpandRight.visibility = View.VISIBLE
+        btnCancelSelection.text     = "關閉"
         layoutCandidates.visibility     = View.GONE
         layoutNormalControls.visibility = View.VISIBLE
         if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
@@ -642,37 +656,29 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
-    private fun toggleDictInsertPanel() {
-        if (layoutDictInsert.visibility == View.VISIBLE) {
-            hideDictInsertPanel()
-        } else {
-            showDictInsertPanel()
-        }
-    }
-
-    private fun showDictInsertPanel() {
+    private fun showDictPanel() {
         val words = UserDictionary.load(this).values.distinct().sorted()
         if (words.isEmpty()) {
             tvStatus.text = "詞彙庫為空，請先至設定新增詞彙"
             return
         }
-        llDictInsertChips.removeAllViews()
+        isDictMode = true
+        isCursorMode = false
+        setShift(false)
+        llCandidates.removeAllViews()
         words.forEach { word ->
-            val chip = makeChip(word)
-            chip.setOnClickListener {
-                commitText(word)
-                hideDictInsertPanel()
+            makeChip(word).also { chip ->
+                chip.setOnClickListener { commitText(word); collapseSelection() }
+                llCandidates.addView(chip)
             }
-            llDictInsertChips.addView(chip)
         }
+        tvSelectedRange.text = "點擊詞彙直接插入"
+        btnCancelSelection.text = "關閉"
+        btnShift.visibility         = View.GONE
+        btnSelExpandLeft.visibility  = View.GONE
+        btnSelExpandRight.visibility = View.GONE
         layoutNormalControls.visibility = View.GONE
-        layoutCandidates.visibility     = View.GONE
-        layoutDictInsert.visibility     = View.VISIBLE
-    }
-
-    private fun hideDictInsertPanel() {
-        layoutDictInsert.visibility     = View.GONE
-        layoutNormalControls.visibility = View.VISIBLE
+        layoutCandidates.visibility     = View.VISIBLE
     }
 
     private fun openDictSettings() {
