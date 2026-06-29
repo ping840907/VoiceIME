@@ -85,6 +85,10 @@ class VoiceImeService : InputMethodService() {
     private var isCursorMode = false
     private var cursorPos    = 0
 
+    // Shift mode: ◀/▶ extend selection from the anchor set when shift was enabled
+    private var isShiftOn  = false
+    private var shiftAnchor = 0
+
     // Views
     private lateinit var tvTranscription: SelectableTextView
     private lateinit var tvStatus: TextView
@@ -102,6 +106,7 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnCloseDictInsert: TextView
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
+    private lateinit var btnShift: TextView
     private lateinit var btnSelExpandLeft: TextView
     private lateinit var btnSelExpandRight: TextView
     private lateinit var btnCandidateMic: TextView
@@ -129,6 +134,7 @@ class VoiceImeService : InputMethodService() {
         btnCloseDictInsert   = view.findViewById(R.id.btn_close_dict_insert)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
+        btnShift             = view.findViewById(R.id.btn_shift)
         btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
         btnSelExpandRight    = view.findViewById(R.id.btn_sel_expand_right)
         btnCandidateMic      = view.findViewById(R.id.btn_candidate_mic)
@@ -155,11 +161,17 @@ class VoiceImeService : InputMethodService() {
         btnSpace.setOnClickListener { commitText(" ") }
         btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
+        btnShift.setOnClickListener { toggleShift() }
         btnCancelSelection.setOnClickListener {
-            if (isCursorMode) {
+            if (isCursorMode && !isShiftOn) {
                 collapseSelection()
+            } else if (isShiftOn) {
+                // cancel shift selection → back to cursor at anchor
+                cursorPos = shiftAnchor
+                setShift(false)
+                updateCursorHighlight()
             } else {
-                // selection mode → transition to cursor mode at selection start
+                // long-press selection mode → transition to cursor mode at selection start
                 cursorPos = selStart
                 selStart = 0; selEnd = 0
                 showCursorPanel()
@@ -402,6 +414,7 @@ class VoiceImeService : InputMethodService() {
     private fun showCursorPanel() {
         if (pendingText.isEmpty()) return
         isCursorMode = true
+        setShift(false)
         cursorPos = cursorPos.coerceIn(0, pendingText.length)
         updateCursorHighlight()
         populateCandidateChips()
@@ -427,21 +440,78 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun adjustSelection(delta: Int) {
-        if (isCursorMode) {
-            cursorPos = (cursorPos + delta).coerceIn(0, pendingText.length)
-            updateCursorHighlight()
-        } else {
-            val len = pendingText.length
-            selFocus = (selFocus + delta).coerceIn(0, len - 1)
-            if (selFocus >= selAnchor) {
-                selStart = selAnchor
-                selEnd   = selFocus + 1
-            } else {
-                selStart = selFocus
-                selEnd   = selAnchor + 1
+        when {
+            isShiftOn -> {
+                // extend/shrink shift selection
+                cursorPos = (cursorPos + delta).coerceIn(0, pendingText.length)
+                val s = minOf(shiftAnchor, cursorPos)
+                val e = maxOf(shiftAnchor, cursorPos)
+                selStart = s; selEnd = e
+                updateShiftHighlight()
             }
-            updateSelectionHighlight()
+            isCursorMode -> {
+                cursorPos = (cursorPos + delta).coerceIn(0, pendingText.length)
+                updateCursorHighlight()
+            }
+            else -> {
+                val len = pendingText.length
+                selFocus = (selFocus + delta).coerceIn(0, len - 1)
+                if (selFocus >= selAnchor) {
+                    selStart = selAnchor
+                    selEnd   = selFocus + 1
+                } else {
+                    selStart = selFocus
+                    selEnd   = selAnchor + 1
+                }
+                updateSelectionHighlight()
+            }
         }
+    }
+
+    private fun toggleShift() {
+        setShift(!isShiftOn)
+        if (isShiftOn) {
+            shiftAnchor = cursorPos
+            selStart = cursorPos; selEnd = cursorPos
+            updateShiftHighlight()
+        } else {
+            cursorPos = cursorPos.coerceIn(0, pendingText.length)
+            updateCursorHighlight()
+        }
+    }
+
+    private fun setShift(on: Boolean) {
+        isShiftOn = on
+        if (::btnShift.isInitialized) {
+            btnShift.setBackgroundResource(if (on) R.drawable.commit_bg else R.drawable.key_bg)
+            btnShift.setTextColor(
+                ContextCompat.getColor(this, if (on) R.color.ime_accent_text else R.color.ime_key_text)
+            )
+            btnCancelSelection.text = when {
+                on          -> "取消選取"
+                isCursorMode -> "關閉"
+                else         -> "取消選取"
+            }
+        }
+    }
+
+    private fun updateShiftHighlight() {
+        val s = minOf(shiftAnchor, cursorPos).coerceIn(0, pendingText.length)
+        val e = maxOf(shiftAnchor, cursorPos).coerceIn(0, pendingText.length)
+        val spannable = SpannableString(pendingText)
+        if (e > s) {
+            spannable.setSpan(BackgroundColorSpan(0x4429B6F6), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        // Show cursor at current pos on top of selection
+        spannable.setSpan(
+            ForegroundColorSpan(ContextCompat.getColor(this, R.color.ime_accent)),
+            cursorPos.coerceIn(0, pendingText.length - 1),
+            (cursorPos + 1).coerceAtMost(pendingText.length),
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        tvTranscription.text = spannable
+        val selected = if (e > s) pendingText.substring(s, e) else ""
+        tvSelectedRange.text = if (selected.isEmpty()) "⇧ 移動方向鍵開始選取" else "選取範圍：「$selected」"
     }
 
     private fun updateSelectionHighlight() {
@@ -470,7 +540,18 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun applyCandidate(replacement: String) {
-        if (isCursorMode) {
+        if (isShiftOn && selStart < selEnd) {
+            // replace shift selection
+            val s = selStart.coerceIn(0, pendingText.length)
+            val e = selEnd.coerceIn(0, pendingText.length)
+            val original = pendingText.substring(s, e)
+            pendingText  = pendingText.substring(0, s) + replacement + pendingText.substring(e)
+            cursorPos    = s + replacement.length
+            setShift(false)
+            updateCursorHighlight()
+            populateCandidateChips()
+            tvStatus.text = "已替換「$original」→「$replacement」"
+        } else if (isCursorMode) {
             val pos = cursorPos.coerceIn(0, pendingText.length)
             pendingText = pendingText.substring(0, pos) + replacement + pendingText.substring(pos)
             cursorPos   = pos + replacement.length
@@ -490,6 +571,7 @@ class VoiceImeService : InputMethodService() {
 
     private fun collapseSelection() {
         isCursorMode = false
+        setShift(false)
         selStart = 0; selEnd = 0
         if (!::layoutCandidates.isInitialized) return
         layoutCandidates.visibility     = View.GONE
