@@ -80,11 +80,14 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnBackspace: TextView
     private lateinit var btnEnter: TextView
     private lateinit var btnSpace: TextView
-    private lateinit var btnNewline: TextView
+    private lateinit var btnDictInsert: TextView
     private lateinit var btnSettings: ImageButton
     private lateinit var progressBar: ProgressBar
     private lateinit var layoutNormalControls: LinearLayout
     private lateinit var layoutCandidates: LinearLayout
+    private lateinit var layoutDictInsert: LinearLayout
+    private lateinit var llDictInsertChips: ChipGroup
+    private lateinit var btnCloseDictInsert: TextView
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
     private lateinit var btnSelExpandLeft: TextView
@@ -103,11 +106,14 @@ class VoiceImeService : InputMethodService() {
         btnBackspace         = view.findViewById(R.id.btn_backspace)
         btnEnter             = view.findViewById(R.id.btn_enter)
         btnSpace             = view.findViewById(R.id.btn_space)
-        btnNewline           = view.findViewById(R.id.btn_newline)
+        btnDictInsert        = view.findViewById(R.id.btn_dict_insert)
         btnSettings          = view.findViewById(R.id.btn_settings)
         progressBar          = view.findViewById(R.id.progress_bar)
         layoutNormalControls = view.findViewById(R.id.layout_normal_controls)
         layoutCandidates     = view.findViewById(R.id.layout_candidates)
+        layoutDictInsert     = view.findViewById(R.id.layout_dict_insert)
+        llDictInsertChips    = view.findViewById(R.id.ll_dict_insert_chips)
+        btnCloseDictInsert   = view.findViewById(R.id.btn_close_dict_insert)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
         btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
@@ -133,9 +139,10 @@ class VoiceImeService : InputMethodService() {
         }
         btnEnter.setOnClickListener { onEnterClick() }
         btnSpace.setOnClickListener { commitText(" ") }
-        btnNewline.setOnClickListener { commitText("\n") }
+        btnDictInsert.setOnClickListener { toggleDictInsertPanel() }
         btnSettings.setOnClickListener { openDictSettings() }
         btnCancelSelection.setOnClickListener { collapseSelection() }
+        btnCloseDictInsert.setOnClickListener { hideDictInsertPanel() }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
 
@@ -413,6 +420,39 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
+    private fun toggleDictInsertPanel() {
+        if (layoutDictInsert.visibility == View.VISIBLE) {
+            hideDictInsertPanel()
+        } else {
+            showDictInsertPanel()
+        }
+    }
+
+    private fun showDictInsertPanel() {
+        val words = UserDictionary.load(this).values.distinct().sorted()
+        if (words.isEmpty()) {
+            tvStatus.text = "詞彙庫為空，請先至設定新增詞彙"
+            return
+        }
+        llDictInsertChips.removeAllViews()
+        words.forEach { word ->
+            val chip = makeChip(word)
+            chip.setOnClickListener {
+                commitText(word)
+                hideDictInsertPanel()
+            }
+            llDictInsertChips.addView(chip)
+        }
+        layoutNormalControls.visibility = View.GONE
+        layoutCandidates.visibility     = View.GONE
+        layoutDictInsert.visibility     = View.VISIBLE
+    }
+
+    private fun hideDictInsertPanel() {
+        layoutDictInsert.visibility     = View.GONE
+        layoutNormalControls.visibility = View.VISIBLE
+    }
+
     private fun openDictSettings() {
         startActivity(Intent(this, DictSettingsActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -437,9 +477,9 @@ class VoiceImeService : InputMethodService() {
         val hasPending = pendingText.isNotEmpty()
         // Dynamic labels for backspace / enter
         btnBackspace.text = if (hasPending) "取消" else "⌫"
-        btnBackspace.textSize = if (hasPending) 14f else 22f
+        btnBackspace.textSize = if (hasPending) 14f else 26f
         btnEnter.text     = if (hasPending) "確認插入" else "↵"
-        btnEnter.textSize = if (hasPending) 13f else 22f
+        btnEnter.textSize = if (hasPending) 13f else 26f
         btnEnter.setBackgroundResource(if (hasPending) R.drawable.commit_bg else R.drawable.key_bg)
         btnEnter.setTextColor(
             ContextCompat.getColor(this, if (hasPending) R.color.ime_accent_text else R.color.ime_key_text)

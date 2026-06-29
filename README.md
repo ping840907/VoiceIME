@@ -1,333 +1,230 @@
-# 語音助理
+# VoiceIME — 離線語音輸入法
 
-Android 上的離線語音操控助理。說一句話，助理就能替你點按、輸入、開啟 App，全程不需要網路。
-
-## 功能概覽
-
-- **語音輸入**：按下麥克風按鈕說話，自動辨識後送給 AI 執行
-- **文字輸入**：切換鍵盤模式，直接打字下指令
-- **ASR 引擎切換**：在設定頁選擇 SenseVoice-Small（快速）或 Qwen3-ASR-0.6B（高精度）
-- **多步驟自動化**：一條指令可跨畫面連續操作（上限 8 步、30 秒逾時）
-- **完全離線**：ASR 與 LLM 均在裝置本機執行，語音不上傳
-- **懸浮氣泡**：漸層圓球樣式，吸附四邊，常駐於所有 App 上方
-- **開機自啟**：裝置重開機後自動恢復運行
-- **安全保護**：執行期間顯示攔截遮罩；金融、OTP、密碼管理 App 一律拒絕自動操作
+Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為核心引擎，在裝置本機完成語音辨識，不需要網路連線。
 
 ---
 
-## 架構
+## 架構概覽
 
 ```
-使用者語音 / 文字
-        │
-        ▼
- SenseVoice-Small  ←─┐  可在設定頁切換
- Qwen3-ASR-0.6B   ←─┘  (sherpa-onnx，純離線)
-        │ 文字轉譯
-        ▼
-  Gemma 4 E2B (LLM)      ← LiteRT LM，NPU → GPU → CPU 自動備援
-        │ JSON action
-        ▼
- AccessibilityService      ← 讀取畫面節點、執行點按 / 輸入 / 滑動
-        │
-        ▼
-   目標 App 操作完成
+使用者語音
+     │
+     ▼
+ AudioRecorder（VAD + PCM 採樣）
+     │ FloatArray (16 kHz)
+     ▼
+ Qwen3AsrEngine（sherpa-onnx 離線辨識）
+     │ 簡體中文文字
+     ▼
+ opencc4j（ZhConverterUtil.toTraditional）
+     │ 繁體中文文字
+     ▼
+ pendingText（預覽區顯示）
+     │
+     ├── 長按選取 → UserDictionary 替換詞候選面板
+     ├── 確認插入 → InputConnection.commitText()
+     └── 詞彙鍵 → 直接插入自定義詞彙
 ```
 
-### 主要元件
+---
 
-| 元件 | 說明 |
+## 主要元件
+
+| 類別 | 說明 |
 |------|------|
-| `FloatingBubbleService` | 懸浮氣泡前景服務，管理氣泡與展開面板 UI |
-| `PipelineOrchestrator` | 協調錄音 → 轉譯 → LLM → 執行的完整流程 |
-| `AsrEngine` | ASR 後端通用介面 |
-| `SenseVoiceEngine` | sherpa-onnx SenseVoice 封裝，NNAPI → CPU 備援 |
-| `Qwen3AsrEngine` | sherpa-onnx Qwen3-ASR 封裝，NNAPI → CPU 備援 |
-| `GemmaEngine` | LiteRT LM Gemma 4 封裝，NPU → GPU → CPU 備援 |
-| `ActionExecutor` | 將 LLM JSON 動作轉換為 Accessibility 操作 |
-| `AssistantAccessibilityService` | 讀取畫面節點樹、執行手勢與文字輸入 |
-| `NodeSerializer` | 將無障礙節點樹壓縮為 LLM 可用的文字格式 |
-| `BlockingOverlay` | 執行期間全螢幕觸控攔截遮罩 |
-| `AutomationGuard` | 多步驟安全限制（步數上限、逾時） |
-| `AppBlacklist` | 禁止自動操作的敏感 App 清單 |
+| `VoiceImeService` | `InputMethodService` 主體，管理鍵盤 UI 與輸入流程 |
+| `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援 |
+| `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止） |
+| `SelectableTextView` | 自製長按 + 拖曳選取 TextView，不觸發系統焦點搶奪 |
+| `UserDictionary` | SharedPreferences JSON 詞彙庫（key=from, value=to） |
+| `DictSettingsActivity` | 詞彙管理頁面（新增 / 刪除） |
+| `ImeSettingsActivity` | 顯示 ASR Provider 狀態（NNAPI / CPU） |
+| `ModelConfig` | 模型路徑常數與推理參數 |
 
 ---
 
-## 需求
+## 鍵盤版面
 
-- Android 8.0（API 26）以上
-- 建議：Snapdragon 或 MediaTek 旗艦機，RAM ≥ 6 GB
-- 儲存空間：SenseVoice ~234 MB、Qwen3-ASR ~600 MB、Gemma 4 E2B ~2.6–3.0 GB（依版本）
-- 開發環境：Android Studio Hedgehog 以上、JDK 17
+```
+┌────────────────────────────────────────┐
+│  辨識結果預覽區（長按可選取文字）           │
+├────────────────────────────────────────┤
+│  進度條 / 狀態文字                        │
+├──────────┬────────────┬────────────────┤
+│  ⌫ / 取消 │    🎙️ MIC  │   ↵ / 確認插入 │
+├──────────┴────────────┴────────────────┤
+│  ⚙️      │    空格     │    詞彙         │
+└──────────┴────────────┴────────────────┘
+```
+
+### 按鍵行為
+
+| 按鍵 | 無辨識文字 | 有辨識文字 |
+|------|-----------|-----------|
+| ⌫ | 刪除游標前一字 | 取消辨識結果 |
+| ⌫ 長按 | 連續刪除（50 ms/字） | — |
+| ↵ | 送出 Enter / IME action | 確認插入辨識結果 |
+| 🎙️ | 開始錄音 | 開始錄音（取代舊結果） |
+| 🎙️（錄音中） | 提前停止 | — |
+| ⚙️ | 開啟詞彙設定 Activity | — |
+| 詞彙 | 顯示自定義詞彙插入面板 | 同左 |
+| 空格 | 插入空白字元 | — |
+
+### 候選詞替換流程
+
+1. 辨識完成 → 文字顯示於預覽區
+2. 長按預覽區文字 → 選取單字（可用 ◀ ▶ 調整範圍）
+3. 候選詞面板顯示 UserDictionary 中的詞彙
+4. 點選詞彙 → 替換選取範圍的文字
+5. 點「確認插入」提交全文，或點「取消選取」繼續編輯
+
+### 詞彙直接插入流程
+
+1. 點「詞彙」鍵 → 顯示詞彙插入面板
+2. 點選任一詞彙 → 直接 `commitText()` 至目標輸入框
+3. 面板自動關閉
 
 ---
 
-## 模型下載與安裝
+## 推理引擎
 
-所有模型放在 App 的外部專用儲存空間，**不需要** `READ_EXTERNAL_STORAGE` 權限。
+### ASR（sherpa-onnx）
 
-目標根目錄（以 debug 版為例）：
-```
-/sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
-```
+| Provider 優先順序 | 說明 |
+|-----------------|------|
+| `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
+| `cpu` | 純軟體備援，所有裝置可用 |
 
----
+活躍 provider 持久化於 `SharedPreferences("asr_engine")`，可在 `ImeSettingsActivity` 查看。
 
-### 1. SenseVoice-Small（ASR，預設，~234 MB）
+### 繁簡轉換
 
-**下載**：[sherpa-onnx ASR Models Releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
+ASR 模型（Qwen3）以簡體中文訓練，輸出為簡體。使用 **opencc4j 1.8.1**（`ZhConverterUtil.toTraditional()`）進行後處理轉換為繁體中文，在 `postProcess()` 中呼叫。
 
-找到並下載：
-```
-sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
-```
-
-**需要的檔案**：
-```
-sense_voice/
-├── model.int8.onnx   ← 壓縮包內的 model.int8.onnx（約 234 MB）
-└── tokens.txt
-```
-
-> 壓縮包解壓後，將資料夾重新命名為 `sense_voice` 並確認內含 `model.int8.onnx`（或將 `model.onnx` 重新命名）。
-
-**推送至裝置**：
-```bash
-adb push sense_voice/ \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
-```
+> 注意：opencc4j 轉換在 JVM 層完成，不影響 sherpa-onnx 原生推理速度。
 
 ---
 
-### 2. Qwen3-ASR-0.6B-int8（ASR，可選切換，~600 MB）
+## 模型安裝
 
-**下載**：[sherpa-onnx ASR Models Releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
+模型放置於 App 外部專用儲存（無需 READ_EXTERNAL_STORAGE）：
 
-找到並下載：
+```
+/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr/
+├── conv_frontend.onnx
+├── encoder.int8.onnx
+├── decoder.int8.onnx
+└── tokenizer/
+    ├── vocab.json
+    ├── merges.txt
+    ├── tokenizer_config.json
+    └── （其餘詞表檔案）
+```
+
+**下載來源**：[sherpa-onnx ASR Models Releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
+
 ```
 sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
 ```
 
-**需要的檔案**：
-```
-qwen3_asr/
-├── conv_frontend.onnx
-├── encoder.int8.onnx
-├── decoder.int8.onnx
-└── tokenizer/            ← 整個目錄
-    ├── vocab.json
-    ├── merges.txt
-    └── ...（其餘詞表檔案）
-```
+解壓後重新命名資料夾為 `qwen3_asr`，推送至裝置：
 
-> 壓縮包解壓後，將資料夾重新命名為 `qwen3_asr`。
-
-**推送至裝置**：
 ```bash
 adb push qwen3_asr/ \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
+  /sdcard/Android/data/com.ping.voiceim.debug/files/models/
 ```
-
-> 在 App 主頁「語音辨識引擎」卡片選擇 **Qwen3-ASR-0.6B** 後重新啟動服務即可生效。
-
----
-
-### 3. Gemma 4 E2B（LLM，~2.6–3.0 GB）
-
-**下載**：[Hugging Face — litert-community/gemma-4-E2B-it-litert-lm](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)
-
-依裝置選擇下載對應版本（`.litertlm` 格式）：
-
-| 檔案 | 大小 | 適用裝置 |
-|------|------|----------|
-| `gemma-4-E2B-it.litertlm` | 2.59 GB | 任意 Android 裝置（GPU / CPU，**推薦**） |
-| `gemma-4-E2B-it_qualcomm_sm8750.litertlm` | 3.02 GB | Snapdragon 8 Elite（SM8750）NPU 加速 |
-| `gemma-4-E2B-it_qualcomm_qcs8275.litertlm` | 3.29 GB | Qualcomm QCS8275 NPU 加速 |
-
-> 不確定 SoC 型號的使用者，下載 `gemma-4-E2B-it.litertlm` 即可。App 會依序嘗試 NPU → GPU → CPU 後端，自動使用最佳選項。
-
-**推送至裝置**（兩個版本均推送為相同的目標檔名）：
-
-```bash
-# 通用版（GPU / CPU，建議）
-adb push gemma-4-E2B-it.litertlm \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
-
-# Snapdragon 8 Elite NPU 版（SM8750 裝置）
-adb push gemma-4-E2B-it_qualcomm_sm8750.litertlm \
-  /sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/gemma-4-E2B-it.litertlm
-```
-
----
-
-### 最終目錄結構
-
-```
-/sdcard/Android/data/com.ping.elderlyassistant.debug/files/models/
-├── sense_voice/
-│   ├── model.int8.onnx
-│   └── tokens.txt
-├── qwen3_asr/                  ← 選用（切換 ASR 引擎時需要）
-│   ├── conv_frontend.onnx
-│   ├── encoder.int8.onnx
-│   ├── decoder.int8.onnx
-│   └── tokenizer/
-└── gemma-4-E2B-it-litert-lm.task
-```
-
----
-
-## 推理加速層
-
-### ASR（ONNX Runtime via sherpa-onnx）
-
-| 優先順序 | Provider | 說明 |
-|---------|----------|------|
-| 1 | `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
-| 2 | `cpu` | 純軟體，所有裝置均可用 |
-
-### LLM（LiteRT LM）
-
-| 優先順序 | Backend | 說明 |
-|---------|---------|------|
-| 1 | NPU (QNN) | Qualcomm Hexagon DSP，最低功耗、最快速度 |
-| 2 | GPU (OpenCL) | Adreno / Mali GPU，廣泛支援 |
-| 3 | CPU | 保底備援，速度較慢 |
 
 ---
 
 ## 建置步驟
 
-### 1. 加入 SDK 依賴
+### 1. 加入 sherpa-onnx AAR
 
-**sherpa-onnx**（需手動下載 AAR，不發佈至 Maven Central）：
-
-1. 前往 https://github.com/k2-fsa/sherpa-onnx/releases
-2. 下載 `sherpa-onnx-1.13.3.aar`（選一般版，勿選 `-rknn` 或 `-static-link` 變體）
-3. 放入 `app/libs/`
+前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.3.aar`，放入 `app/libs/`。
 
 ```groovy
 // app/build.gradle
 implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
 ```
 
-**LiteRT LM**（Maven，已加入 `app/build.gradle`）：
+### 2. 其他依賴（已在 build.gradle）
 
 ```groovy
-implementation 'com.google.ai.edge.litertlm:litertlm-android:0.11.0'
+implementation 'com.github.houbb:opencc4j:1.8.1'
+implementation 'com.google.android.material:material:1.12.0'
 ```
 
-> 版本號參考 [google-ai-edge/gallery](https://github.com/google-ai-edge/gallery) 的 `libs.versions.toml`。
-
-### 2. 編譯
+### 3. 編譯與安裝
 
 ```bash
 ./gradlew assembleDebug
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
----
+### 4. 啟用輸入法
 
-## 首次設定
-
-App 開啟後，依序完成四項權限授權：
-
-1. **麥克風** — 系統彈窗，點允許
-2. **懸浮視窗** — 前往系統設定頁開啟
-3. **無障礙服務** — 前往設定 → 無障礙 → 語音助理 → 啟用
-4. **電池優化豁免** — 前往設定，選「不受限制」，防止系統背景終止服務
-
-全部完成後，點「啟動語音助理」即可看到氣泡出現在螢幕角落。
+系統設定 → 一般管理 → 鍵盤清單 → 啟用 VoiceIME → 切換為預設輸入法。
 
 ---
 
-## 使用方式
+## 首次使用
 
-| 操作 | 說明 |
-|------|------|
-| 點擊氣泡 | 展開操作面板 |
-| 點擊「話」按鈕 | 開始錄音；再點一次提前停止 |
-| 點擊「⌨」按鈕 | 切換文字輸入模式 |
-| 點擊「✕」或面板外側 | 收起面板（進行中的操作會先取消） |
-| 拖曳氣泡 | 移動位置，放開後自動吸附最近邊緣 |
+1. 啟用輸入法後，在任意輸入框點擊鍵盤圖示切換至 VoiceIME
+2. App 啟動時自動在背景預載模型（首次約 3–10 秒）
+3. 麥克風按鈕亮起後即可開始語音輸入
 
-### 指令範例
-
-- 「幫我打電話給媽媽」
-- 「傳 LINE 給阿明說我在路上了」
-- 「打開 YouTube」
-- 「搜尋今天的天氣」
+若麥克風圖示顯示為「請前往設定授予麥克風權限」，點擊後會跳轉至 App 系統設定頁面授權。
 
 ---
 
 ## 技術細節
 
-### Pipeline 狀態機
+### VAD（靜音偵測）
 
-```
-Idle → Recording → Transcribing → Thinking → Executing → Done / Error → Idle
-```
+`AudioRecorder` 以 16 kHz 單聲道採樣，每 160 個樣本（10 ms）計算 RMS 能量。連續 `VAD_SILENCE_SECONDS`（1.5 s）低於 `VAD_SILENCE_THRESHOLD`（0.012）時自動停止錄音，最長錄音時間 `MAX_RECORD_SECONDS`（15 s）。
 
-- `Done` 或 `Error` 狀態停留 3.5 秒後自動回到 `Idle`
-- 任何狀態下呼叫 `cancel()` 皆立即回到 `Idle`
+### 文字選取
 
-### LLM Prompt 格式
+`SelectableTextView` 繼承自 `TextView`，以 `GestureDetector` 偵測長按起點，再追蹤 `ACTION_MOVE` 計算選取範圍。設定 `isFocusable = false` 避免搶奪 IME 視窗焦點，以 `requestDisallowInterceptTouchEvent(true)` 防止外層 `HorizontalScrollView` 攔截拖曳事件。
 
-系統提示（`PromptBuilder.SYSTEM_INSTRUCTION`）直接傳入 LiteRT LM 的 `ConversationConfig.systemInstruction()`，包含：
+### 選取錨點模型（Anchor / Focus）
 
-- 繁體中文 / 台語助理身分描述
-- 支援的 JSON 動作 schema（click / type / scroll / back / home / open_app / done / unknown）
-- 5 組 few-shot 範例（撥話、傳訊、開 App、捲動、完成）
-- 常用 App 套件名稱對照表
+- **anchor**：長按時確定，長按期間保持不動
+- **focus**：`▶` 往右移動，`◀` 往左移動（可越過 anchor 反向延伸）
+- `selStart = min(anchor, focus)`, `selEnd = max(anchor, focus) + 1`
 
-使用者訊息為純文字，多步驟歷程以前綴行形式嵌入。
+### UserDictionary
 
-### 安全設計
-
-- **BlockingOverlay**：AI 執行期間遮蓋全螢幕，阻擋誤觸
-- **AppBlacklist**：金融 App、驗證器、密碼管理工具一律拒絕自動操作
-- **AutomationGuard**：最多 8 步、30 秒強制逾時
-- **FLAG_SECURE 防護**：嘗試操作受保護視窗時回傳 Blocked
+JSON 儲存於 `SharedPreferences("user_dict")`，格式為 `{ "詞彙": "詞彙" }`（key 與 value 目前相同，保留 key 供未來 from→to 替換擴展）。替換時以 index-based 方式操作：`text.substring(0, s) + replacement + text.substring(e)`，避免 `replaceFirst()` 只替換第一個出現位置的問題。
 
 ---
 
 ## 專案結構
 
 ```
-app/src/main/java/com/ping/elderlyassistant/
-├── MainActivity.kt                    # 權限設定畫面 + ASR 引擎選擇
-├── FloatingBubbleService.kt           # 懸浮氣泡前景服務
-├── AssistantAccessibilityService.kt   # 無障礙服務橋接
-├── NodeSerializer.kt                  # 節點樹序列化
-├── AppBlacklist.kt                    # 敏感 App 黑名單
-├── BootReceiver.kt                    # 開機自啟
-├── ServicePrefs.kt                    # 服務狀態與 ASR 引擎選擇持久化
-├── engine/
-│   ├── AsrEngine.kt                   # ASR 後端通用介面
-│   ├── SenseVoiceEngine.kt            # sherpa-onnx SenseVoice 實作
-│   ├── Qwen3AsrEngine.kt              # sherpa-onnx Qwen3-ASR 實作
-│   ├── LlmEngine.kt                   # LLM 介面定義
-│   ├── GemmaEngine.kt                 # LiteRT LM Gemma 4 實作
-│   ├── AudioRecorder.kt               # 麥克風錄音 + VAD
-│   └── ModelConfig.kt                 # 模型路徑與推理參數
-└── pipeline/
-    ├── PipelineOrchestrator.kt        # 主流程協調器
-    ├── ActionExecutor.kt              # JSON action 執行器
-    ├── PromptBuilder.kt               # LLM prompt 建構
-    ├── AutomationGuard.kt             # 步數 / 逾時安全守衛
-    └── BlockingOverlay.kt             # 執行期間觸控攔截
+app/src/main/java/com/ping/voiceim/
+├── VoiceImeService.kt          # InputMethodService 主體
+├── SelectableTextView.kt       # 自製長按選取 TextView
+├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝
+├── DictSettingsActivity.kt     # 詞彙管理頁面
+├── ImeSettingsActivity.kt      # ASR provider 狀態顯示
+└── engine/
+    ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝
+    ├── AudioRecorder.kt        # 麥克風錄音 + VAD
+    └── ModelConfig.kt          # 模型路徑與參數常數
 ```
 
 ---
 
 ## 授權
 
-本專案程式碼採 MIT 授權。
+程式碼採 MIT 授權。
 
-所用模型及 SDK 各有獨立授權：
+所用第三方元件：
 
-- SenseVoice-Small：[Apache 2.0](https://github.com/FunAudioLLM/SenseVoice)
-- Qwen3-ASR：[Apache 2.0](https://github.com/QwenLM/Qwen3-ASR)
-- Gemma 4：[Apache 2.0](https://ai.google.dev/gemma/apache_2)
-- sherpa-onnx：[Apache 2.0](https://github.com/k2-fsa/sherpa-onnx)
-- LiteRT LM：[Apache 2.0](https://github.com/google-ai-edge/LiteRT)
+| 元件 | 授權 |
+|------|------|
+| sherpa-onnx | Apache 2.0 |
+| Qwen3-ASR-0.6B | Apache 2.0 |
+| opencc4j | Apache 2.0 |
+| Material Components for Android | Apache 2.0 |

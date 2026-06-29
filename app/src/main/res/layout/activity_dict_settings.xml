@@ -8,7 +8,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="識別後自動將「原文」替換為「替換詞」，可用於修正專有名詞或語音誤識。"
+        android:text="長按辨識結果選取文字，再點選對應詞彙進行替換；或透過鍵盤「詞彙」鍵直接插入。"
         android:textSize="13sp"
         android:textColor="@color/text_secondary"
         android:padding="16dp"
