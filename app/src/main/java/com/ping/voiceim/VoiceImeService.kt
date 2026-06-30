@@ -30,6 +30,7 @@ import com.google.android.material.chip.ChipGroup
 import com.ping.voiceim.engine.AudioRecorder
 import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.Qwen3AsrEngine
+import com.ping.voiceim.engine.XAsrEngine
 import com.k2fsa.sherpa.onnx.OnlineStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
