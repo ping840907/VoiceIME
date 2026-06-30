@@ -20,6 +20,9 @@ class XAsrEngine(private val context: Context) {
 
     @Volatile private var recognizer: OnlineRecognizer? = null
     private val loadMutex = Mutex()
+    // True only when the recognizer was built with modified_beam_search (hotwords capable)
+    @Volatile var hotwordsEnabled: Boolean = false
+        private set
 
     fun isLoaded() = recognizer != null
 
@@ -38,57 +41,66 @@ class XAsrEngine(private val context: Context) {
 
             release()
 
-            try {
-                recognizer = OnlineRecognizer(
-                    config = OnlineRecognizerConfig(
-                        featConfig = FeatureConfig(
-                            sampleRate = ModelConfig.ASR_SAMPLE_RATE,
-                            featureDim = 80,
-                        ),
-                        modelConfig = OnlineModelConfig(
-                            transducer = OnlineTransducerModelConfig(
-                                encoder = encoder,
-                                decoder = decoder,
-                                joiner  = joiner,
+            // Try modified_beam_search first (required for per-stream hotwords);
+            // fall back to greedy_search if the model/library doesn't support it.
+            val methods = listOf(
+                "modified_beam_search" to true,
+                "greedy_search"        to false,
+            )
+            for ((method, supportsHotwords) in methods) {
+                try {
+                    recognizer = OnlineRecognizer(
+                        config = OnlineRecognizerConfig(
+                            featConfig = FeatureConfig(
+                                sampleRate = ModelConfig.ASR_SAMPLE_RATE,
+                                featureDim = 80,
                             ),
-                            tokens     = tokens,
-                            numThreads = ModelConfig.X_ASR_THREADS,
-                            provider   = "cpu",
-                        ),
-                        endpointConfig = EndpointConfig(
-                            rule1 = EndpointRule(false, 2.4f, 0f),
-                            rule2 = EndpointRule(true,  1.2f, 10f),
-                            rule3 = EndpointRule(false, 0f,   20f),
-                        ),
-                        enableEndpoint  = true,
-                        // modified_beam_search is required for per-stream hotwords
-                        decodingMethod  = "modified_beam_search",
-                        maxActivePaths  = 4,
-                        hotwordsScore   = ModelConfig.X_ASR_HOTWORDS_SCORE,
+                            modelConfig = OnlineModelConfig(
+                                transducer = OnlineTransducerModelConfig(
+                                    encoder = encoder,
+                                    decoder = decoder,
+                                    joiner  = joiner,
+                                ),
+                                tokens     = tokens,
+                                numThreads = ModelConfig.X_ASR_THREADS,
+                                provider   = "cpu",
+                            ),
+                            endpointConfig = EndpointConfig(
+                                rule1 = EndpointRule(false, 2.4f, 0f),
+                                rule2 = EndpointRule(true,  1.2f, 10f),
+                                rule3 = EndpointRule(false, 0f,   20f),
+                            ),
+                            enableEndpoint = true,
+                            decodingMethod = method,
+                            maxActivePaths = 4,
+                            hotwordsScore  = if (supportsHotwords) ModelConfig.X_ASR_HOTWORDS_SCORE else 0f,
+                        )
                     )
-                )
-                Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}  decoding=modified_beam_search")
-                LoadResult(true)
-            } catch (ex: Exception) {
-                Log.e(TAG, "Load failed: ${ex.message}", ex)
-                LoadResult(false, error = ex.message)
+                    hotwordsEnabled = supportsHotwords
+                    Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}  decoding=$method")
+                    return@withContext LoadResult(true)
+                } catch (ex: Exception) {
+                    Log.w(TAG, "decoding=$method failed: ${ex.message}")
+                    release()
+                }
             }
+            LoadResult(false, error = "All decoding methods failed")
         }
     }
 
     fun release() {
         recognizer?.release()
         recognizer = null
+        hotwordsEnabled = false
     }
 
     /**
-     * Create a new streaming session with optional hotwords for contextual biasing.
-     * [hotwords] is a newline-separated list of space-tokenised phrases,
-     * e.g. "台 灣\n人 工 智 慧". Use [formatHotwords] to build this from plain words.
+     * Create a new streaming session. When [hotwordsEnabled] is true (modified_beam_search),
+     * [hotwords] is passed through for contextual biasing; otherwise it is ignored.
      * Caller owns the returned stream (must call release()).
      */
     fun createStream(hotwords: String = ""): OnlineStream? =
-        recognizer?.createStream(hotwords)
+        recognizer?.createStream(if (hotwordsEnabled) hotwords else "")
 
     companion object {
         private const val TAG = "XAsrEngine"

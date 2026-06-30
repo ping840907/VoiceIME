@@ -33,11 +33,11 @@ class SelectableTextView @JvmOverloads constructor(
             }
             override fun onLongPress(e: MotionEvent) {
                 if (text.isEmpty()) return
-                val offset = offsetAt(e.x, e.y).coerceIn(0, text.length - 1)
-                selAnchor  = offset
+                val charIdx = charIndexAt(e.x, e.y)
+                selAnchor  = charIdx
                 isDragging = true
                 parent?.requestDisallowInterceptTouchEvent(true)
-                fire(offset, offset + 1)
+                fire(charIdx, charIdx + 1)
             }
         })
 
@@ -69,6 +69,29 @@ class SelectableTextView @JvmOverloads constructor(
         val l = layout ?: return -1
         val line = l.getLineForVertical(y.toInt() + scrollY)
         return l.getOffsetForHorizontal(line, x + scrollX)
+    }
+
+    /**
+     * Return the CHARACTER INDEX (0-based) under the touch point.
+     *
+     * [getOffsetForHorizontal] returns a CURSOR position (between characters),
+     * so pressing the right half of char i returns i+1. We compare against
+     * the cursor's actual x position (getPrimaryHorizontal) to resolve ambiguity.
+     */
+    private fun charIndexAt(x: Float, y: Float): Int {
+        val l    = layout ?: return 0
+        val line = l.getLineForVertical(y.toInt() + scrollY)
+        val raw  = l.getOffsetForHorizontal(line, x + scrollX)
+        val touchX = x + scrollX
+        return when {
+            raw <= 0           -> 0
+            raw >= text.length -> text.length - 1
+            else -> {
+                // raw is ambiguous: could be right-half of char (raw-1) or left-half of char raw.
+                // getPrimaryHorizontal(raw) is the boundary between the two chars.
+                if (touchX < l.getPrimaryHorizontal(raw)) raw - 1 else raw
+            }
+        }.coerceIn(0, text.length - 1)
     }
 
     private fun fire(start: Int, end: Int) = onSelectionChanged?.invoke(start, end)
