@@ -354,8 +354,9 @@ class VoiceImeService : InputMethodService() {
                         val partial = engine.getResult(stream)
                         if (partial.isNotBlank()) {
                             Handler(Looper.getMainLooper()).post {
-                                tvTranscription.text = partial
                                 pendingText = partial
+                                tvTranscription.displayCursorAt = -1
+                                tvTranscription.text = partial
                             }
                         }
                         if (engine.isEndpoint(stream)) {
@@ -395,6 +396,7 @@ class VoiceImeService : InputMethodService() {
     private fun onTranscriptionDone(text: String) {
         if (text.isBlank()) { setState(State.IDLE); return }
         pendingText = text
+        tvTranscription.displayCursorAt = -1
         tvTranscription.text = text
         setState(State.IDLE)
     }
@@ -413,6 +415,7 @@ class VoiceImeService : InputMethodService() {
         isCursorMode = true
         setShift(true)
 
+        tvTranscription.cancelDrag()
         updateShiftHighlight()
         populateCandidateChips()
         btnShift.visibility         = View.VISIBLE
@@ -426,6 +429,7 @@ class VoiceImeService : InputMethodService() {
         isCursorMode = true
         setShift(false)
         cursorPos = cursorPos.coerceIn(0, pendingText.length)
+        tvTranscription.cancelDrag()
         updateCursorHighlight()
         populateCandidateChips()
         btnShift.visibility         = View.VISIBLE
@@ -521,6 +525,7 @@ class VoiceImeService : InputMethodService() {
             }
         }
 
+        tvTranscription.displayCursorAt = cp
         tvTranscription.text = spannable
         val selected = if (s < e) pendingText.substring(s, e) else ""
         tvSelectedRange.text = if (selected.isEmpty()) "⇧ 移動方向鍵開始選取"
@@ -536,6 +541,7 @@ class VoiceImeService : InputMethodService() {
             pos, pos + 1,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
+        tvTranscription.displayCursorAt = pos
         tvTranscription.text = spannable
 
         val before = if (pos > 0) pendingText[pos - 1].toString() else ""
@@ -586,7 +592,10 @@ class VoiceImeService : InputMethodService() {
         btnSelExpandRight.visibility = View.VISIBLE
         layoutCandidates.visibility     = View.GONE
         layoutNormalControls.visibility = View.VISIBLE
-        if (::tvTranscription.isInitialized) tvTranscription.text = pendingText
+        if (::tvTranscription.isInitialized) {
+            tvTranscription.displayCursorAt = -1
+            tvTranscription.text = pendingText
+        }
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {
@@ -636,7 +645,10 @@ class VoiceImeService : InputMethodService() {
     private fun clearPending() {
         pendingText = ""
         collapseSelection()
-        if (::tvTranscription.isInitialized) tvTranscription.text = ""
+        if (::tvTranscription.isInitialized) {
+            tvTranscription.displayCursorAt = -1
+            tvTranscription.text = ""
+        }
         if (::btnMic.isInitialized) updateUi()
     }
 
