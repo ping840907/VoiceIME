@@ -30,7 +30,6 @@ import com.google.android.material.chip.ChipGroup
 import com.ping.voiceim.engine.AudioRecorder
 import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.Qwen3AsrEngine
-import com.ping.voiceim.engine.XAsrEngine
 import com.k2fsa.sherpa.onnx.OnlineStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -330,10 +329,7 @@ class VoiceImeService : InputMethodService() {
 
     private fun startStreamingRecording() {
         val engine = xAsr.value
-        val hotwords = XAsrEngine.formatHotwords(
-            UserDictionary.load(this).values.distinct()
-        )
-        val stream = engine.createStream(hotwords) ?: run {
+        val stream = engine.createStream() ?: run {
             showToast("無法建立 X-ASR 串流")
             return
         }

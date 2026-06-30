@@ -27,9 +27,7 @@ object ModelConfig {
     const val X_ASR_DECODER = "decoder.onnx"
     const val X_ASR_JOINER  = "joiner.int8.onnx"
     const val X_ASR_TOKENS  = "tokens.txt"
-    const val X_ASR_THREADS         = 4
-    // Bonus score applied to each hotword token during modified_beam_search
-    const val X_ASR_HOTWORDS_SCORE  = 1.5f
+    const val X_ASR_THREADS = 4
 
     // ── Shared ────────────────────────────────────────────────────────────────
     const val ASR_SAMPLE_RATE = 16_000
