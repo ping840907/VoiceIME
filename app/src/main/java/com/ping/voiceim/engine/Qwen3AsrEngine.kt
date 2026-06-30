@@ -28,6 +28,8 @@ class Qwen3AsrEngine(private val context: Context) {
 
     @Volatile private var recognizer: OfflineRecognizer? = null
     private val loadMutex = Mutex()
+    @Volatile var loadedHotwords: String = ""
+        private set
 
     /** Provider that successfully initialized the recognizer, e.g. "nnapi" or "cpu". */
     var activeProvider: String = "unknown"
@@ -35,8 +37,13 @@ class Qwen3AsrEngine(private val context: Context) {
 
     fun isLoaded() = recognizer != null
 
-    suspend fun load(): LoadResult = loadMutex.withLock {
-        if (isLoaded()) return@withLock LoadResult(true, provider = activeProvider)
+    /**
+     * Load (or reload) the recognizer.
+     * [hotwords] is a newline-separated list of words/phrases to boost during decoding.
+     * If the engine is already loaded with the same hotwords, this is a no-op.
+     */
+    suspend fun load(hotwords: String = ""): LoadResult = loadMutex.withLock {
+        if (isLoaded() && loadedHotwords == hotwords) return@withLock LoadResult(true, provider = activeProvider)
         withContext(Dispatchers.IO) {
             val convFrontend = ModelConfig.qwen3AsrConvFrontendPath(context)
             val encoder      = ModelConfig.qwen3AsrEncoderPath(context)
@@ -63,17 +70,23 @@ class Qwen3AsrEngine(private val context: Context) {
                             ),
                             modelConfig = OfflineModelConfig(
                                 qwen3Asr   = OfflineQwen3AsrModelConfig(
-                                    convFrontend, encoder, decoder, tokenizer),
+                                    convFrontend = convFrontend,
+                                    encoder      = encoder,
+                                    decoder      = decoder,
+                                    tokenizer    = tokenizer,
+                                    hotwords     = hotwords,
+                                ),
                                 numThreads = ModelConfig.QWEN3_ASR_THREADS,
                                 provider   = provider,
                             ),
                         )
                     )
+                    loadedHotwords = hotwords
                     activeProvider = provider
                     // Persist so ImeSettingsActivity can read it without binding the service
                     context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
                         .edit().putString(KEY_PROVIDER, provider).apply()
-                    Log.i(TAG, "Loaded — provider=$provider  threads=${ModelConfig.QWEN3_ASR_THREADS}")
+                    Log.i(TAG, "Loaded — provider=$provider  threads=${ModelConfig.QWEN3_ASR_THREADS}  hotwords=${hotwords.lines().size} words")
                     return@withContext LoadResult(true, provider = provider)
                 } catch (ex: Exception) {
                     Log.w(TAG, "Provider '$provider' failed: ${ex.message}")
@@ -87,6 +100,7 @@ class Qwen3AsrEngine(private val context: Context) {
     fun release() {
         recognizer?.release()
         recognizer = null
+        loadedHotwords = ""
     }
 
     suspend fun transcribe(samples: FloatArray): String = withContext(Dispatchers.IO) {

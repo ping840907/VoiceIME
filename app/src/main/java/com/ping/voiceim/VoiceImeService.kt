@@ -258,7 +258,7 @@ class VoiceImeService : InputMethodService() {
             if (qwen3Asr.value.isLoaded()) return
             setState(State.LOADING)
             scope.launch {
-                val result = qwen3Asr.value.load()
+                val result = qwen3Asr.value.load(buildHotwords())
                 setState(State.IDLE)
                 if (result.success) {
                     val providerLabel = providerDisplayName(result.provider)
@@ -295,7 +295,27 @@ class VoiceImeService : InputMethodService() {
             if (!xAsr.value.isLoaded()) { preloadModel(); return }
             startStreamingRecording()
         } else {
-            if (!qwen3Asr.value.isLoaded()) { preloadModel(); return }
+            val hotwords = buildHotwords()
+            if (!qwen3Asr.value.isLoaded()) {
+                setState(State.LOADING)
+                scope.launch {
+                    val result = qwen3Asr.value.load(hotwords)
+                    setState(State.IDLE)
+                    if (result.success) startOfflineRecording()
+                    else showToast("模型載入失敗: ${result.error}")
+                }
+                return
+            }
+            // Reload if hotwords changed (fast no-op when unchanged)
+            if (hotwords != qwen3Asr.value.loadedHotwords) {
+                setState(State.LOADING)
+                scope.launch {
+                    qwen3Asr.value.load(hotwords)
+                    setState(State.IDLE)
+                    startOfflineRecording()
+                }
+                return
+            }
             startOfflineRecording()
         }
     }
@@ -617,6 +637,10 @@ class VoiceImeService : InputMethodService() {
     }
 
     // ── Text pipeline ─────────────────────────────────────────────────────────
+
+    /** Build a newline-separated hotwords string from the current UserDictionary. */
+    private fun buildHotwords(): String =
+        UserDictionary.load(this).values.distinct().sorted().joinToString("\n")
 
     private fun postProcess(raw: String): String {
         if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) return raw
