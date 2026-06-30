@@ -18,10 +18,6 @@ import java.io.File
 
 class XAsrEngine(private val context: Context) {
 
-    companion object {
-        private const val TAG = "XAsrEngine"
-    }
-
     @Volatile private var recognizer: OnlineRecognizer? = null
     private val loadMutex = Mutex()
 
@@ -64,10 +60,14 @@ class XAsrEngine(private val context: Context) {
                             rule2 = EndpointRule(true,  1.2f, 10f),
                             rule3 = EndpointRule(false, 0f,   20f),
                         ),
-                        enableEndpoint = true,
+                        enableEndpoint  = true,
+                        // modified_beam_search is required for per-stream hotwords
+                        decodingMethod  = "modified_beam_search",
+                        maxActivePaths  = 4,
+                        hotwordsScore   = ModelConfig.X_ASR_HOTWORDS_SCORE,
                     )
                 )
-                Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}")
+                Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}  decoding=modified_beam_search")
                 LoadResult(true)
             } catch (ex: Exception) {
                 Log.e(TAG, "Load failed: ${ex.message}", ex)
@@ -81,8 +81,31 @@ class XAsrEngine(private val context: Context) {
         recognizer = null
     }
 
-    /** Create a new streaming session. Caller owns the returned stream (must call release()). */
-    fun createStream(): OnlineStream? = recognizer?.createStream()
+    /**
+     * Create a new streaming session with optional hotwords for contextual biasing.
+     * [hotwords] is a newline-separated list of space-tokenised phrases,
+     * e.g. "台 灣\n人 工 智 慧". Use [formatHotwords] to build this from plain words.
+     * Caller owns the returned stream (must call release()).
+     */
+    fun createStream(hotwords: String = ""): OnlineStream? =
+        recognizer?.createStream(hotwords)
+
+    companion object {
+        private const val TAG = "XAsrEngine"
+
+        /**
+         * Convert a list of plain words into the space-tokenised format required
+         * by the transducer hotwords API (one character/letter per token, words
+         * separated by newlines).
+         *
+         * Examples:
+         *   "台灣"   → "台 灣"
+         *   "iPhone" → "i P h o n e"   (letters space-separated)
+         */
+        fun formatHotwords(words: Iterable<String>): String =
+            words.filter { it.isNotBlank() }
+                .joinToString("\n") { word -> word.trim().map { it }.joinToString(" ") }
+    }
 
     /** Feed a chunk of PCM samples into an active stream. */
     fun acceptWaveform(stream: OnlineStream, samples: FloatArray) {

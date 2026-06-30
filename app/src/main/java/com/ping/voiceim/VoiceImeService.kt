@@ -343,7 +343,10 @@ class VoiceImeService : InputMethodService() {
 
     private fun startStreamingRecording() {
         val engine = xAsr.value
-        val stream = engine.createStream() ?: run {
+        val hotwords = XAsrEngine.formatHotwords(
+            UserDictionary.load(this).values.distinct()
+        )
+        val stream = engine.createStream(hotwords) ?: run {
             showToast("無法建立 X-ASR 串流")
             return
         }
