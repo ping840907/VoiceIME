@@ -90,35 +90,43 @@ class SelectableTextView @JvmOverloads constructor(
     private fun rawToLogical(raw: Int): Int =
         if (displayCursorAt >= 0 && raw >= displayCursorAt) raw - 1 else raw
 
+    /** View (x, y) → Layout x coordinate (subtracts padding so Layout methods work correctly). */
+    private fun toLayoutX(x: Float) = x - totalPaddingLeft + scrollX
+    private fun toLayoutY(y: Float) = y - totalPaddingTop  + scrollY
+
     private fun logicalOffsetAt(x: Float, y: Float): Int {
-        val l = layout ?: return -1
-        val line = l.getLineForVertical(y.toInt() + scrollY)
-        return rawToLogical(l.getOffsetForHorizontal(line, x + scrollX))
+        val l    = layout ?: return -1
+        val lx   = toLayoutX(x)
+        val line = l.getLineForVertical(toLayoutY(y).toInt())
+        return rawToLogical(l.getOffsetForHorizontal(line, lx))
     }
 
     /**
      * Return the CHARACTER INDEX (0-based, in logical/pendingText coordinates)
      * under the touch point.
      *
-     * [getOffsetForHorizontal] returns a CURSOR position (between characters),
-     * so pressing the right half of char i returns i+1.  We compare against
-     * the cursor's actual x position (getPrimaryHorizontal) to resolve ambiguity.
-     * Then we subtract 1 for any inserted "|" at or before the result.
+     * Both [getOffsetForHorizontal] and [getPrimaryHorizontal] use Layout
+     * coordinates (no padding). Touch x must be converted to the same space
+     * before the comparison, otherwise chars are consistently shifted right
+     * by one due to the View's left padding.
+     *
+     * Then compensate for any inserted "|" at [displayCursorAt].
      */
     private fun charIndexAt(x: Float, y: Float): Int {
         val l      = layout ?: return 0
-        val line   = l.getLineForVertical(y.toInt() + scrollY)
-        val raw    = l.getOffsetForHorizontal(line, x + scrollX)
-        val touchX = x + scrollX
+        val lx     = toLayoutX(x)
+        val line   = l.getLineForVertical(toLayoutY(y).toInt())
+        val raw    = l.getOffsetForHorizontal(line, lx)
 
         val charIdx = when {
             raw <= 0           -> 0
             raw >= text.length -> text.length - 1
-            else -> if (touchX < l.getPrimaryHorizontal(raw)) raw - 1 else raw
+            // getPrimaryHorizontal returns layout x — compare against layout x (lx), not view x
+            else -> if (lx < l.getPrimaryHorizontal(raw)) raw - 1 else raw
         }
 
         // Compensate for inserted "|": positions at or after the cursor shift by -1
-        val adjusted   = if (displayCursorAt >= 0 && charIdx >= displayCursorAt) charIdx - 1 else charIdx
+        val adjusted     = if (displayCursorAt >= 0 && charIdx >= displayCursorAt) charIdx - 1 else charIdx
         val effectiveMax = (logicalLength() - 1).coerceAtLeast(0)
         return adjusted.coerceIn(0, effectiveMax)
     }
