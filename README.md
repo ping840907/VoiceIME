@@ -1,6 +1,6 @@
 # VoiceIME — 離線語音輸入法
 
-Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為核心引擎，在裝置本機完成語音辨識，不需要網路連線。
+Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X-ASR 為辨識引擎，在裝置本機完成語音辨識，不需要網路連線。
 
 ---
 
@@ -12,18 +12,19 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
      ▼
  AudioRecorder（VAD + PCM 採樣）
      │ FloatArray (16 kHz)
-     ▼
- Qwen3AsrEngine（sherpa-onnx 離線辨識）
-     │ 簡體中文文字
-     ▼
- opencc4j（ZhConverterUtil.toTraditional）
-     │ 繁體中文文字
-     ▼
- pendingText（預覽區顯示）
-     │
-     ├── 長按選取 → UserDictionary 替換詞候選面板
-     ├── 確認插入 → InputConnection.commitText()
-     └── 詞彙鍵 → 直接插入自定義詞彙
+     ├─────────────────────────────────┐
+     ▼                                 ▼
+ Qwen3AsrEngine                   XAsrEngine
+ （OfflineRecognizer）             （OnlineRecognizer）
+ 簡體中文                          繁體中文（逐 chunk 即時）
+     │ opencc4j                        │
+     ▼                                 ▼
+              pendingText（預覽區）
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+     長按/單點    詞彙鍵      確認插入
+   → 游標面板  → 游標面板  → commitText()
 ```
 
 ---
@@ -33,12 +34,13 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 | 類別 | 說明 |
 |------|------|
 | `VoiceImeService` | `InputMethodService` 主體，管理鍵盤 UI 與輸入流程 |
-| `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援 |
-| `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止） |
+| `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援，含 UserDictionary 熱詞 |
+| `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer），含 UserDictionary 熱詞 |
+| `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止），支援離線與串流兩種模式 |
 | `SelectableTextView` | 自製長按 + 拖曳選取 TextView，不觸發系統焦點搶奪 |
-| `UserDictionary` | SharedPreferences JSON 詞彙庫（key=from, value=to） |
+| `UserDictionary` | SharedPreferences JSON 詞彙庫 |
 | `DictSettingsActivity` | 詞彙管理頁面（新增 / 刪除） |
-| `ImeSettingsActivity` | 顯示 ASR Provider 狀態（NNAPI / CPU） |
+| `ImeSettingsActivity` | 引擎切換與模型狀態頁面 |
 | `ModelConfig` | 模型路徑常數與推理參數 |
 
 ---
@@ -47,7 +49,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 
 ```
 ┌────────────────────────────────────────┐
-│  辨識結果預覽區（長按可選取文字）           │
+│  辨識結果預覽區（長按 / 單點進入游標面板）  │
 ├────────────────────────────────────────┤
 │  進度條 / 狀態文字                        │
 ├──────────┬────────────┬────────────────┤
@@ -66,23 +68,37 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 | ↵ | 送出 Enter / IME action | 確認插入辨識結果 |
 | 🎙️ | 開始錄音 | 開始錄音（取代舊結果） |
 | 🎙️（錄音中） | 提前停止 | — |
-| ⚙️ | 開啟詞彙設定 Activity | — |
-| 詞彙 | 顯示自定義詞彙插入面板 | 同左 |
+| ⚙️ | 開啟設定 Activity | — |
+| 詞彙 | 開啟游標面板（直接插入模式） | 開啟游標面板（插入至游標位置） |
 | 空格 | 插入空白字元 | — |
 
-### 候選詞替換流程
+### 游標面板
 
-1. 辨識完成 → 文字顯示於預覽區
-2. 長按預覽區文字 → 選取單字（可用 ◀ ▶ 調整範圍）
-3. 候選詞面板顯示 UserDictionary 中的詞彙
-4. 點選詞彙 → 替換選取範圍的文字
-5. 點「確認插入」提交全文，或點「取消選取」繼續編輯
+長按預覽區、單點預覽區、或按「詞彙」鍵，都會進入同一個游標面板。
 
-### 詞彙直接插入流程
+```
+┌────────────────────────────────────────┐
+│  辨識結果（含游標 |）                    │
+├──────────────────────────────────────  │
+│  插入位置 / 選取範圍提示                  │
+├────────────────────────────────────────┤
+│  [詞彙 Chip 列表]                       │
+├──────┬───────────┬───────────┬─────────┤
+│  ⇧   │     ◀     │     ▶     │  關閉   │
+└──────┴───────────┴───────────┴─────────┘
+```
 
-1. 點「詞彙」鍵 → 顯示詞彙插入面板
-2. 點選任一詞彙 → 直接 `commitText()` 至目標輸入框
-3. 面板自動關閉
+**游標模式**（Shift OFF）
+- ◀ / ▶：移動插入游標
+- 點擊詞彙 Chip：在游標位置插入
+- 按 ⇧：進入選取模式，錨點固定在目前游標位置
+
+**選取模式**（Shift ON）
+- ◀ / ▶：從錨點延伸 / 收縮選取範圍
+- 點擊詞彙 Chip：替換選取範圍
+- 按 ⇧ 或「取消選取」：游標回到錨點，回到游標模式
+
+長按拖曳進入面板時，Shift 預設為 ON（拖曳起點為錨點）。
 
 ---
 
@@ -97,19 +113,13 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 為�
 | `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
 | `cpu` | 純軟體備援，所有裝置可用 |
 
-活躍 provider 持久化於 `SharedPreferences("asr_engine")`，可在 `ImeSettingsActivity` 查看。
-
-錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。
+錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。UserDictionary 詞彙在載入引擎時作為熱詞（`OfflineQwen3AsrModelConfig.hotwords`）注入，詞彙更新時自動重新載入。
 
 ### X-ASR（串流，原生繁體）
 
-基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 1024-frame chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
+基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
 
-使用 CPU provider（NNAPI 對 transducer 支援有限）。
-
-### 繁簡轉換
-
-僅 Qwen3 引擎套用 **opencc4j 1.8.1**（`ZhConverterUtil.toTraditional()`）。X-ASR 引擎直接輸出繁體中文，`postProcess()` 會根據選取的引擎決定是否呼叫 opencc4j。
+使用 `modified_beam_search` 解碼（transducer 熱詞的必要條件）。UserDictionary 詞彙於每次錄音時透過 `createStream(hotwords)` 動態傳入，無需重載引擎。
 
 ---
 
@@ -156,8 +166,6 @@ adb push qwen3_asr/ \
 
 **下載來源**：[Luigi/x-asr-zh-tw-en-streaming-ft75m](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)
 
-推送至裝置：
-
 ```bash
 adb push x_asr/ \
   /sdcard/Android/data/com.ping.voiceim.debug/files/models/
@@ -202,30 +210,6 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 2. App 啟動時自動在背景預載模型（首次約 3–10 秒）
 3. 麥克風按鈕亮起後即可開始語音輸入
 
-若麥克風圖示顯示為「請前往設定授予麥克風權限」，點擊後會跳轉至 App 系統設定頁面授權。
-
----
-
-## 技術細節
-
-### VAD（靜音偵測）
-
-`AudioRecorder` 以 16 kHz 單聲道採樣，每 160 個樣本（10 ms）計算 RMS 能量。連續 `VAD_SILENCE_SECONDS`（1.5 s）低於 `VAD_SILENCE_THRESHOLD`（0.012）時自動停止錄音，最長錄音時間 `MAX_RECORD_SECONDS`（15 s）。
-
-### 文字選取
-
-`SelectableTextView` 繼承自 `TextView`，以 `GestureDetector` 偵測長按起點，再追蹤 `ACTION_MOVE` 計算選取範圍。設定 `isFocusable = false` 避免搶奪 IME 視窗焦點，以 `requestDisallowInterceptTouchEvent(true)` 防止外層 `HorizontalScrollView` 攔截拖曳事件。
-
-### 選取錨點模型（Anchor / Focus）
-
-- **anchor**：長按時確定，長按期間保持不動
-- **focus**：`▶` 往右移動，`◀` 往左移動（可越過 anchor 反向延伸）
-- `selStart = min(anchor, focus)`, `selEnd = max(anchor, focus) + 1`
-
-### UserDictionary
-
-JSON 儲存於 `SharedPreferences("user_dict")`，格式為 `{ "詞彙": "詞彙" }`（key 與 value 目前相同，保留 key 供未來 from→to 替換擴展）。替換時以 index-based 方式操作：`text.substring(0, s) + replacement + text.substring(e)`，避免 `replaceFirst()` 只替換第一個出現位置的問題。
-
 ---
 
 ## 專案結構
@@ -240,7 +224,7 @@ app/src/main/java/com/ping/voiceim/
 └── engine/
     ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝（離線）
     ├── XAsrEngine.kt           # sherpa-onnx X-ASR 封裝（串流）
-    ├── AudioRecorder.kt        # 麥克風錄音 + VAD（支援離線與串流模式）
+    ├── AudioRecorder.kt        # 麥克風錄音 + VAD
     └── ModelConfig.kt          # 模型路徑與參數常數
 ```
 
@@ -249,8 +233,6 @@ app/src/main/java/com/ping/voiceim/
 ## 授權
 
 程式碼採 MIT 授權。
-
-所用第三方元件：
 
 | 元件 | 授權 |
 |------|------|
