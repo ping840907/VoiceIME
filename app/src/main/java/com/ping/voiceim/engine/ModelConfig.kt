@@ -38,6 +38,20 @@ object ModelConfig {
     const val MIN_RECORD_SECONDS    = 0.4f
     const val VAD_SILENCE_SECONDS   = 1.5f
     const val VAD_SILENCE_THRESHOLD = 0.012f
+    const val VAD_SILENCE_MIN       = 0.5f
+    const val VAD_SILENCE_MAX       = 3.0f
+
+    private const val PREF_VAD      = "vad_settings"
+    private const val KEY_VAD_SILENCE = "silence_seconds"
+
+    /** User-configurable pause length (seconds) before Qwen3 offline recording auto-stops. */
+    fun vadSilenceSeconds(context: Context): Float =
+        context.getSharedPreferences(PREF_VAD, Context.MODE_PRIVATE)
+            .getFloat(KEY_VAD_SILENCE, VAD_SILENCE_SECONDS)
+
+    fun setVadSilenceSeconds(context: Context, seconds: Float) =
+        context.getSharedPreferences(PREF_VAD, Context.MODE_PRIVATE)
+            .edit().putFloat(KEY_VAD_SILENCE, seconds.coerceIn(VAD_SILENCE_MIN, VAD_SILENCE_MAX)).apply()
 
     fun modelsDir(context: Context): String =
         context.getExternalFilesDir("models")?.absolutePath

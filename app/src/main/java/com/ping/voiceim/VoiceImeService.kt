@@ -21,6 +21,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -69,6 +70,8 @@ class VoiceImeService : InputMethodService() {
         private const val TAG = "VoiceImeService"
         private const val REPEAT_DELETE_DELAY_MS   = 400L
         private const val REPEAT_DELETE_INTERVAL_MS = 50L
+        private const val REPEAT_MOVE_DELAY_MS      = 400L
+        private const val REPEAT_MOVE_INTERVAL_MS   = 80L
     }
 
     // Selection state
@@ -102,6 +105,18 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnSelExpandLeft: TextView
     private lateinit var btnSelExpandRight: TextView
     private lateinit var btnCancelSelection: TextView
+    private lateinit var scrollSuggestions: ScrollView
+    private lateinit var llSuggestions: ChipGroup
+
+    // Repeat-move for selection expand buttons (long-press)
+    private val repeatMoveHandler = Handler(Looper.getMainLooper())
+    private var repeatMoveDelta = 0
+    private val repeatMoveRunnable: Runnable = object : Runnable {
+        override fun run() {
+            adjustSelection(repeatMoveDelta)
+            repeatMoveHandler.postDelayed(this, REPEAT_MOVE_INTERVAL_MS)
+        }
+    }
 
     private enum class State { IDLE, LOADING, RECORDING, PROCESSING }
     private var state = State.IDLE
@@ -126,6 +141,8 @@ class VoiceImeService : InputMethodService() {
         btnSelExpandLeft     = view.findViewById(R.id.btn_sel_expand_left)
         btnSelExpandRight    = view.findViewById(R.id.btn_sel_expand_right)
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
+        scrollSuggestions    = view.findViewById(R.id.scroll_suggestions)
+        llSuggestions        = view.findViewById(R.id.ll_suggestions)
 
         btnMic.setOnClickListener { onMicClick() }
         btnBackspace.setOnClickListener { onBackspaceClick() }
@@ -162,6 +179,8 @@ class VoiceImeService : InputMethodService() {
         }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
+        attachRepeatMove(btnSelExpandLeft,  delta = -1)
+        attachRepeatMove(btnSelExpandRight, delta = +1)
 
         tvTranscription.onSingleTap = { offset ->
             if (pendingText.isNotEmpty()) {
@@ -314,7 +333,10 @@ class VoiceImeService : InputMethodService() {
 
         recordingJob = scope.launch {
             val recording = withContext(Dispatchers.IO) {
-                recorder.recordUntilSilence(onRmsUpdate = { rms -> updateRmsBar(rms) })
+                recorder.recordUntilSilence(
+                    silenceSeconds = ModelConfig.vadSilenceSeconds(this@VoiceImeService),
+                    onRmsUpdate = { rms -> updateRmsBar(rms) }
+                )
             }
             isRecording = false
             if (recording.samples.isNotEmpty()) {
@@ -324,6 +346,7 @@ class VoiceImeService : InputMethodService() {
                 onTranscriptionDone(text)
             } else {
                 setState(State.IDLE)
+                showToast("未偵測到語音，請再試一次")
             }
         }
     }
@@ -391,11 +414,16 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun onTranscriptionDone(text: String) {
-        if (text.isBlank()) { setState(State.IDLE); return }
+        if (text.isBlank()) {
+            setState(State.IDLE)
+            showToast("未偵測到語音，請再試一次")
+            return
+        }
         pendingText = text
         tvTranscription.displayCursorAt = -1
         tvTranscription.text = text
         setState(State.IDLE)
+        updateSuggestions()
     }
 
     // ── Selection / candidate panel ───────────────────────────────────────────
@@ -420,6 +448,7 @@ class VoiceImeService : InputMethodService() {
         btnSelExpandRight.visibility = View.VISIBLE
         layoutNormalControls.visibility = View.GONE
         layoutCandidates.visibility     = View.VISIBLE
+        scrollSuggestions.visibility    = View.GONE
     }
 
     private fun showCursorPanel() {
@@ -434,6 +463,7 @@ class VoiceImeService : InputMethodService() {
         btnSelExpandRight.visibility = View.VISIBLE
         layoutNormalControls.visibility = View.GONE
         layoutCandidates.visibility     = View.VISIBLE
+        scrollSuggestions.visibility    = View.GONE
     }
 
     private fun populateCandidateChips() {
@@ -442,11 +472,33 @@ class VoiceImeService : InputMethodService() {
         if (dict.isEmpty()) {
             llCandidates.addView(makeChip("（詞典為空，請新增）", enabled = false))
         } else {
-            dict.entries.sortedBy { it.key }.forEach { (_, to) ->
-                makeChip(to).also { chip ->
-                    chip.setOnClickListener { applyCandidate(to) }
-                    llCandidates.addView(chip)
+            val usage = DictUsage.allCounts(this)
+            dict.entries
+                .sortedWith(compareByDescending<Map.Entry<String, String>> { usage[it.key] ?: 0 }
+                    .thenBy { it.key })
+                .forEach { (from, to) ->
+                    makeChip(to).also { chip ->
+                        chip.setOnClickListener { applyCandidate(from, to) }
+                        llCandidates.addView(chip)
+                    }
                 }
+        }
+    }
+
+    /** Long-press on ◀/▶ repeatedly moves the cursor/selection edge every [REPEAT_MOVE_INTERVAL_MS]. */
+    private fun attachRepeatMove(view: View, delta: Int) {
+        view.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    repeatMoveDelta = delta
+                    repeatMoveHandler.postDelayed(repeatMoveRunnable, REPEAT_MOVE_DELAY_MS)
+                    false // let onClick still fire for a single tap
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    repeatMoveHandler.removeCallbacks(repeatMoveRunnable)
+                    false
+                }
+                else -> false
             }
         }
     }
@@ -546,7 +598,8 @@ class VoiceImeService : InputMethodService() {
         tvSelectedRange.text = "插入位置：「${before}│${after}」"
     }
 
-    private fun applyCandidate(replacement: String) {
+    private fun applyCandidate(from: String, replacement: String) {
+        DictUsage.recordUse(this, from)
         if (pendingText.isEmpty()) {
             // No pending text (dict key with empty transcription): commit directly
             commitText(replacement)
@@ -565,6 +618,7 @@ class VoiceImeService : InputMethodService() {
             setShift(false)
             updateCursorHighlight()
             populateCandidateChips()
+            updateSuggestions()
             tvStatus.text = "已替換「$original」→「$replacement」"
         } else {
             // Cursor mode: insert at cursor position
@@ -575,6 +629,7 @@ class VoiceImeService : InputMethodService() {
             setShift(false)
             updateCursorHighlight()
             populateCandidateChips()
+            updateSuggestions()
             tvStatus.text = "已插入「$replacement」"
         }
     }
@@ -593,6 +648,40 @@ class VoiceImeService : InputMethodService() {
             tvTranscription.displayCursorAt = -1
             tvTranscription.text = pendingText
         }
+        updateSuggestions()
+    }
+
+    /** Show near-miss ASR correction suggestions as tappable chips below the preview. */
+    private fun updateSuggestions() {
+        if (!::scrollSuggestions.isInitialized) return
+        if (pendingText.isEmpty() || isRecording || layoutCandidates.visibility == View.VISIBLE) {
+            scrollSuggestions.visibility = View.GONE
+            return
+        }
+        val suggestions = UserDictionary.findFuzzySuggestions(pendingText, UserDictionary.load(this)).take(5)
+        if (suggestions.isEmpty()) {
+            scrollSuggestions.visibility = View.GONE
+            return
+        }
+        llSuggestions.removeAllViews()
+        suggestions.forEach { s ->
+            makeChip("${s.matchedText}→${s.replacement}").also { chip ->
+                chip.setOnClickListener { applySuggestion(s) }
+                llSuggestions.addView(chip)
+            }
+        }
+        scrollSuggestions.visibility = View.VISIBLE
+    }
+
+    private fun applySuggestion(s: UserDictionary.Suggestion) {
+        val idx = pendingText.indexOf(s.matchedText)
+        if (idx < 0) { updateSuggestions(); return }
+        pendingText = pendingText.substring(0, idx) + s.replacement + pendingText.substring(idx + s.matchedText.length)
+        tvTranscription.displayCursorAt = -1
+        tvTranscription.text = pendingText
+        DictUsage.recordUse(this, s.from)
+        tvStatus.text = "已修正「${s.matchedText}」→「${s.replacement}」"
+        updateSuggestions()
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {

@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.RadioGroup
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -53,6 +54,23 @@ class ImeSettingsActivity : AppCompatActivity() {
             ModelConfig.setSelectedEngine(this, engine)
             updateModelStatus()
         }
+
+        // VAD silence duration slider (0.5s .. 3.0s in 0.1s steps)
+        val sbVad   = findViewById<SeekBar>(R.id.sb_vad_silence)
+        val tvVad   = findViewById<TextView>(R.id.tv_vad_value)
+        fun vadLabel(seconds: Float) = "靜音 %.1f 秒後自動停止".format(seconds)
+        val currentVad = ModelConfig.vadSilenceSeconds(this)
+        sbVad.progress = (((currentVad - ModelConfig.VAD_SILENCE_MIN) / 0.1f).toInt())
+        tvVad.text = vadLabel(currentVad)
+        sbVad.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val seconds = ModelConfig.VAD_SILENCE_MIN + progress * 0.1f
+                tvVad.text = vadLabel(seconds)
+                if (fromUser) ModelConfig.setVadSilenceSeconds(this@ImeSettingsActivity, seconds)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
 
         updateModelStatus()
         updateMicStatus()

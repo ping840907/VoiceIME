@@ -55,4 +55,47 @@ object UserDictionary {
         }
         return result
     }
+
+    data class Suggestion(val matchedText: String, val replacement: String, val from: String)
+
+    /**
+     * Find near-miss ASR errors in [text]: substrings that are NOT an exact
+     * dictionary key but are within edit-distance 1 of one. Exact matches are
+     * skipped (nothing to suggest). Only keys of length 2+ are considered to
+     * avoid noisy single-character matches.
+     */
+    fun findFuzzySuggestions(text: String, entries: Map<String, String>): List<Suggestion> {
+        if (text.isEmpty() || entries.isEmpty()) return emptyList()
+        val results = mutableListOf<Suggestion>()
+        val seen = mutableSetOf<String>()
+        for ((from, to) in entries) {
+            if (from.length < 2 || from == to) continue
+            // Compare windows of length from.length-1 .. from.length+1 to tolerate
+            // one insertion/deletion in addition to one substitution.
+            for (winLen in (from.length - 1)..(from.length + 1)) {
+                if (winLen < 1 || winLen > text.length) continue
+                for (start in 0..(text.length - winLen)) {
+                    val window = text.substring(start, start + winLen)
+                    if (window == from || !seen.add(window)) continue
+                    if (levenshtein(window, from) == 1) {
+                        results += Suggestion(window, to, from)
+                    }
+                }
+            }
+        }
+        return results
+    }
+
+    private fun levenshtein(a: String, b: String): Int {
+        val dp = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) dp[i][0] = i
+        for (j in 0..b.length) dp[0][j] = j
+        for (i in 1..a.length) {
+            for (j in 1..b.length) {
+                dp[i][j] = if (a[i - 1] == b[j - 1]) dp[i - 1][j - 1]
+                else 1 + minOf(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+            }
+        }
+        return dp[a.length][b.length]
+    }
 }

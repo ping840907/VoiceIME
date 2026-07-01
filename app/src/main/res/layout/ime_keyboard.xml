@@ -26,6 +26,27 @@
             android:singleLine="true" />
     </HorizontalScrollView>
 
+    <!-- Fuzzy correction suggestions (near-miss matches against UserDictionary) -->
+    <ScrollView
+        android:id="@+id/scroll_suggestions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="40dp"
+        android:background="@color/ime_preview_bg"
+        android:visibility="gone"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp">
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/ll_suggestions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="4dp"
+            app:chipSpacingVertical="2dp"
+            xmlns:app="http://schemas.android.com/apk/res-auto" />
+    </ScrollView>
+
     <!-- RMS / indeterminate progress -->
     <ProgressBar
         android:id="@+id/progress_bar"
