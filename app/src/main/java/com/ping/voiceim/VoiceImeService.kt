@@ -164,7 +164,7 @@ class VoiceImeService : InputMethodService() {
         btnEnter.setOnClickListener { onEnterClick() }
         btnSpace.setOnClickListener { commitText(" ") }
         btnDictInsert.setOnClickListener { showDictPanel() }
-        btnSettings.setOnClickListener { openDictSettings() }
+        btnSettings.setOnClickListener { openMainSettings() }
         btnShift.setOnClickListener { toggleShift() }
         btnCancelSelection.setOnClickListener {
             if (isShiftOn) {
@@ -779,8 +779,8 @@ class VoiceImeService : InputMethodService() {
         showCursorPanel()
     }
 
-    private fun openDictSettings() {
-        startActivity(Intent(this, DictSettingsActivity::class.java)
+    private fun openMainSettings() {
+        startActivity(Intent(this, ImeSettingsActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
