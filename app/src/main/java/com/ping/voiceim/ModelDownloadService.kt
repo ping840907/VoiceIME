@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.ModelDownloadSpec
@@ -31,6 +32,7 @@ class ModelDownloadService : Service() {
     private var job: Job? = null
     private lateinit var downloader: ModelDownloader
     private lateinit var notificationManager: NotificationManager
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -61,6 +63,7 @@ class ModelDownloadService : Service() {
         val target = ModelDownloadSpec.forEngine(engine)
         val engineLabel = if (engine == ModelConfig.ENGINE_X_ASR) "X-ASR" else "Qwen3-ASR"
         startForeground(NOTIF_ID, buildNotification("準備下載 $engineLabel 模型…", -1))
+        acquireWakeLock()
 
         job = scope.launch {
             val result = downloader.download(target) { progress ->
@@ -69,6 +72,7 @@ class ModelDownloadService : Service() {
             }
             ModelDownloadState.clear()
             ModelDownloadState.results.tryEmit(engine to result)
+            releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -77,13 +81,35 @@ class ModelDownloadService : Service() {
     private fun stopDownload() {
         job?.cancel()
         ModelDownloadState.clear()
+        releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
         job?.cancel()
+        releaseWakeLock()
         super.onDestroy()
+    }
+
+    /**
+     * Decompression is CPU-bound and can take a long time. A foreground service alone keeps
+     * the *process* alive but doesn't stop the OS from clock-throttling the CPU once the
+     * screen turns off (that's a separate power-saving mechanism) — a partial wake lock keeps
+     * the CPU running at normal speed without turning the screen on. Capped at 45 minutes as a
+     * safety net against a leak; released as soon as the download finishes either way.
+     */
+    private fun acquireWakeLock() {
+        val pm = getSystemService(PowerManager::class.java)
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:model_download").apply {
+            setReferenceCounted(false)
+            acquire(45 * 60 * 1000L)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
     }
 
     private fun buildNotification(text: String, percent: Int) =

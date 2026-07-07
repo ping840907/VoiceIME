@@ -131,7 +131,7 @@ class ModelDownloader(private val context: Context) {
             val tmp = File(dest.parentFile, dest.name + ".part")
             conn.inputStream.use { input ->
                 FileOutputStream(tmp).use { output ->
-                    val buf = ByteArray(64 * 1024)
+                    val buf = ByteArray(COPY_BUFFER_SIZE)
                     var done = 0L
                     while (coroutineContext.isActive) {
                         val n = input.read(buf)
@@ -163,7 +163,7 @@ class ModelDownloader(private val context: Context) {
      */
     private fun extractTarBz2(archiveFile: File, targetDir: File, onProgress: (Float, String) -> Unit) {
         val archiveSize = archiveFile.length().coerceAtLeast(1L)
-        val counting = CountingInputStream(BufferedInputStream(archiveFile.inputStream()))
+        val counting = CountingInputStream(BufferedInputStream(archiveFile.inputStream(), COPY_BUFFER_SIZE))
         var lastReportedBytes = 0L
         val reportEveryBytes = 128 * 1024L // throttle UI updates to ~every 128KB consumed
         counting.use { fis ->
@@ -187,7 +187,7 @@ class ModelDownloader(private val context: Context) {
                                 outFile.parentFile?.mkdirs()
                                 var copied = 0L
                                 FileOutputStream(outFile).use { out ->
-                                    val buf = ByteArray(64 * 1024)
+                                    val buf = ByteArray(COPY_BUFFER_SIZE)
                                     while (true) {
                                         val n = tarIn.read(buf)
                                         if (n < 0) break
@@ -247,6 +247,10 @@ class ModelDownloader(private val context: Context) {
 
     companion object {
         private const val TAG = "ModelDownloader"
+
+        // Larger than the JDK's 8KB default to cut down on read()/write() syscall counts for
+        // large model files; still small enough to not matter for memory.
+        private const val COPY_BUFFER_SIZE = 256 * 1024
 
         fun formatBytes(bytes: Long): String = when {
             bytes < 0             -> "大小未知"
