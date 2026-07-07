@@ -3,7 +3,7 @@
     <color name="white">#FFFFFF</color>
     <color name="background">#F5F5F5</color>
     <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
+    <color name="text_secondary">#5A5A5A</color>
 
     <!-- IME keyboard colors -->
     <color name="ime_bg">#263238</color>
