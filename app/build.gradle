@@ -49,4 +49,7 @@ dependencies {
 
     // OpenCC — Simplified → Traditional Chinese
     implementation 'com.github.houbb:opencc4j:1.8.1'
+
+    // tar.bz2 extraction for downloaded Qwen3-ASR model archive
+    implementation 'org.apache.commons:commons-compress:1.26.0'
 }

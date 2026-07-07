@@ -1,6 +1,6 @@
 # VoiceIME — 離線語音輸入法
 
-Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X-ASR 為辨識引擎，在裝置本機完成語音辨識，不需要網路連線。
+Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X-ASR 為辨識引擎，在裝置本機完成語音辨識，辨識過程不需要網路連線（僅首次下載模型時需要）。
 
 ---
 
@@ -125,7 +125,9 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 ## 模型安裝
 
-模型放置於 App 外部專用儲存（無需 READ_EXTERNAL_STORAGE）：
+模型放置於 App 外部專用儲存（無需 READ_EXTERNAL_STORAGE）。
+
+**自動下載（推薦）**：在設定頁點擊「下載模型」，App 會直接從下方來源抓取並自動解壓縮/安裝到正確位置，僅此步驟需要網路連線；辨識過程仍完全於裝置本機執行。也可以用下方手動方式自行放置。
 
 ### Qwen3-ASR
 
@@ -206,9 +208,10 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ## 首次使用
 
-1. 啟用輸入法後，在任意輸入框點擊鍵盤圖示切換至 VoiceIME
-2. App 啟動時自動在背景預載模型（首次約 3–10 秒）
-3. 麥克風按鈕亮起後即可開始語音輸入
+1. 開啟 App，於設定頁點擊「下載模型」（需要網路連線）
+2. 啟用輸入法後，在任意輸入框點擊鍵盤圖示切換至 VoiceIME
+3. App 啟動時自動在背景預載模型（首次約 3–10 秒）
+4. 麥克風按鈕亮起後即可開始語音輸入
 
 ---
 
@@ -218,14 +221,17 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 app/src/main/java/com/ping/voiceim/
 ├── VoiceImeService.kt          # InputMethodService 主體
 ├── SelectableTextView.kt       # 自製長按選取 TextView
-├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝
+├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝 + 模糊修正比對
+├── DictUsage.kt                # 詞彙使用次數統計
 ├── DictSettingsActivity.kt     # 詞彙管理頁面
-├── ImeSettingsActivity.kt      # 設定頁（引擎選擇、模型狀態）
+├── ImeSettingsActivity.kt      # 設定頁（引擎選擇、模型下載、VAD 靈敏度）
 └── engine/
     ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝（離線）
     ├── XAsrEngine.kt           # sherpa-onnx X-ASR 封裝（串流）
     ├── AudioRecorder.kt        # 麥克風錄音 + VAD
-    └── ModelConfig.kt          # 模型路徑與參數常數
+    ├── ModelConfig.kt          # 模型路徑與參數常數
+    ├── ModelDownloadSpec.kt    # 模型下載來源設定
+    └── ModelDownloader.kt      # HTTP 下載 + tar.bz2 解壓縮
 ```
 
 ---

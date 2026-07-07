@@ -107,7 +107,32 @@
                     android:layout_height="wrap_content"
                     android:textSize="13sp"
                     android:textColor="@color/text_secondary"
-                    android:lineSpacingMultiplier="1.4" />
+                    android:lineSpacingMultiplier="1.4"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/btn_download_model"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="下載模型" />
+
+                <TextView
+                    android:id="@+id/tv_download_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/progress_download"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:max="100"
+                    android:layout_marginTop="4dp"
+                    android:visibility="gone" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
