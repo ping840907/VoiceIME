@@ -58,8 +58,9 @@ class ModelDownloader(private val context: Context) {
                     val pct = if (total > 0) ((done * 90) / total).toInt() else -1
                     onProgress(Progress("下載中…", pct))
                 }
-                onProgress(Progress("解壓縮中…", -1))
-                extractTarBz2(archiveFile, stagingDir)
+                extractTarBz2(archiveFile, stagingDir) { fraction ->
+                    onProgress(Progress("解壓縮中…", (fraction * 100).toInt().coerceIn(0, 100)))
+                }
                 archiveFile.delete()
                 if (target.engine == ModelConfig.ENGINE_QWEN3) verifyQwen3Files(stagingDir)
 
@@ -152,9 +153,16 @@ class ModelDownloader(private val context: Context) {
         }
     }
 
-    /** Extracts entries into [targetDir], stripping each entry's first path component. */
-    private fun extractTarBz2(archiveFile: File, targetDir: File) {
-        BufferedInputStream(archiveFile.inputStream()).use { fis ->
+    /**
+     * Extracts entries into [targetDir], stripping each entry's first path component.
+     * [onProgress] receives the fraction (0f..1f) of the *compressed* archive consumed so
+     * far — decompression is CPU-bound and can take a while on-device, so this gives the UI
+     * something better than an indeterminate spinner to show it isn't actually stuck.
+     */
+    private fun extractTarBz2(archiveFile: File, targetDir: File, onProgress: (Float) -> Unit) {
+        val archiveSize = archiveFile.length().coerceAtLeast(1L)
+        val counting = CountingInputStream(BufferedInputStream(archiveFile.inputStream()))
+        counting.use { fis ->
             // decompressConcatenated=true: some tools (e.g. pbzip2) emit multi-stream bzip2
             // archives. Without this flag, BZip2CompressorInputStream silently stops after the
             // first stream, truncating the tar — files further into the archive (like the
@@ -181,11 +189,32 @@ class ModelDownloader(private val context: Context) {
                                 }
                             }
                         }
+                        onProgress(counting.bytesRead.toFloat() / archiveSize)
                         entry = tarIn.nextTarEntry
                     }
                 }
             }
         }
+    }
+
+    /** Wraps a stream and tracks total bytes read through it. */
+    private class CountingInputStream(private val delegate: java.io.InputStream) : java.io.InputStream() {
+        var bytesRead = 0L
+            private set
+
+        override fun read(): Int {
+            val b = delegate.read()
+            if (b >= 0) bytesRead++
+            return b
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val n = delegate.read(b, off, len)
+            if (n > 0) bytesRead += n
+            return n
+        }
+
+        override fun close() = delegate.close()
     }
 
     private fun openConnection(url: String, method: String): HttpURLConnection {
