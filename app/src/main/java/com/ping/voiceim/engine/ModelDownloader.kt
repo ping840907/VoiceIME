@@ -46,15 +46,25 @@ class ModelDownloader(private val context: Context) {
             dir.mkdirs()
 
             if (target.archiveUrl != null) {
+                // Extract into a staging dir first and only swap it into place after it
+                // verifies clean. If this download/extraction fails partway, whatever model
+                // was already installed (if any) is left completely untouched.
+                val stagingDir = File(dir.parentFile, dir.name + "_staging")
+                stagingDir.deleteRecursively()
+                stagingDir.mkdirs()
+
                 val archiveFile = File(context.cacheDir, "model_download.tar.bz2")
                 downloadFile(target.archiveUrl, archiveFile) { done, total ->
                     val pct = if (total > 0) ((done * 90) / total).toInt() else -1
                     onProgress(Progress("下載中…", pct))
                 }
                 onProgress(Progress("解壓縮中…", -1))
-                extractTarBz2(archiveFile, dir)
+                extractTarBz2(archiveFile, stagingDir)
                 archiveFile.delete()
-                if (target.engine == ModelConfig.ENGINE_QWEN3) verifyQwen3Files(dir)
+                if (target.engine == ModelConfig.ENGINE_QWEN3) verifyQwen3Files(stagingDir)
+
+                dir.deleteRecursively()
+                if (!stagingDir.renameTo(dir)) throw IOException("Failed to install extracted model into $dir")
             } else {
                 val n = target.files.size
                 target.files.forEachIndexed { i, f ->
