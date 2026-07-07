@@ -253,9 +253,7 @@ class VoiceImeService : InputMethodService() {
             scope.launch {
                 val result = xAsr.value.load()
                 setState(State.IDLE)
-                if (result.success) {
-                    tvStatus.text = "X-ASR 模型就緒"
-                } else {
+                if (!result.success) {
                     Log.e(TAG, "X-ASR load failed: ${result.error}")
                     showToast("X-ASR 模型載入失敗: ${result.error}")
                 }
@@ -266,10 +264,7 @@ class VoiceImeService : InputMethodService() {
             scope.launch {
                 val result = qwen3Asr.value.load(buildHotwords())
                 setState(State.IDLE)
-                if (result.success) {
-                    val providerLabel = providerDisplayName(result.provider)
-                    tvStatus.text = "模型就緒（$providerLabel）"
-                } else {
+                if (!result.success) {
                     Log.e(TAG, "Model load failed: ${result.error}")
                     showToast("模型載入失敗: ${result.error}")
                 }
@@ -277,8 +272,19 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
+    /** Hardware provider label for whichever engine is currently selected, or "" if not loaded. */
+    private fun currentAcceleratorLabel(): String {
+        val engine = ModelConfig.selectedEngine(this)
+        val provider = if (engine == ModelConfig.ENGINE_X_ASR) {
+            if (xAsr.isInitialized() && xAsr.value.isLoaded()) xAsr.value.activeProvider else null
+        } else {
+            if (qwen3Asr.isInitialized() && qwen3Asr.value.isLoaded()) qwen3Asr.value.activeProvider else null
+        }
+        return provider?.let { providerDisplayName(it) } ?: ""
+    }
+
     private fun providerDisplayName(provider: String) = when (provider) {
-        "nnapi" -> "NNAPI（NPU/GPU 加速）"
+        "nnapi" -> "NNAPI"
         "cpu"   -> "CPU"
         else    -> provider
     }
@@ -306,9 +312,12 @@ class VoiceImeService : InputMethodService() {
                 setState(State.LOADING)
                 scope.launch {
                     val result = qwen3Asr.value.load(hotwords)
-                    setState(State.IDLE)
-                    if (result.success) startOfflineRecording()
-                    else showToast("模型載入失敗: ${result.error}")
+                    if (result.success) {
+                        startOfflineRecording()
+                    } else {
+                        setState(State.IDLE)
+                        showToast("模型載入失敗: ${result.error}")
+                    }
                 }
                 return
             }
@@ -316,9 +325,13 @@ class VoiceImeService : InputMethodService() {
             if (hotwords != qwen3Asr.value.loadedHotwords) {
                 setState(State.LOADING)
                 scope.launch {
-                    qwen3Asr.value.load(hotwords)
-                    setState(State.IDLE)
-                    startOfflineRecording()
+                    val result = qwen3Asr.value.load(hotwords)
+                    if (result.success) {
+                        startOfflineRecording()
+                    } else {
+                        setState(State.IDLE)
+                        showToast("模型載入失敗: ${result.error}")
+                    }
                 }
                 return
             }
@@ -798,7 +811,12 @@ class VoiceImeService : InputMethodService() {
 
         when (state) {
             State.IDLE -> {
-                tvStatus.text = if (hasPending) "" else "點擊麥克風開始語音輸入"
+                tvStatus.text = when {
+                    hasPending -> ""
+                    else -> currentAcceleratorLabel().let {
+                        if (it.isNotEmpty()) "點擊麥克風開始語音輸入（$it）" else "點擊麥克風開始語音輸入"
+                    }
+                }
                 btnMic.setImageResource(R.drawable.ic_mic)
                 btnMic.alpha = 1f
                 progressBar.visibility = View.GONE

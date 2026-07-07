@@ -21,10 +21,14 @@ class XAsrEngine(private val context: Context) {
     @Volatile private var recognizer: OnlineRecognizer? = null
     private val loadMutex = Mutex()
 
+    /** Provider that successfully initialized the recognizer, e.g. "cpu". */
+    var activeProvider: String = "unknown"
+        private set
+
     fun isLoaded() = recognizer != null
 
     suspend fun load(): LoadResult = loadMutex.withLock {
-        if (isLoaded()) return@withLock LoadResult(true)
+        if (isLoaded()) return@withLock LoadResult(true, provider = activeProvider)
         withContext(Dispatchers.IO) {
             val encoder = ModelConfig.xAsrEncoderPath(context)
             val decoder = ModelConfig.xAsrDecoderPath(context)
@@ -65,8 +69,9 @@ class XAsrEngine(private val context: Context) {
                         maxActivePaths = 4,
                     )
                 )
+                activeProvider = "cpu"
                 Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}")
-                LoadResult(true)
+                LoadResult(true, provider = activeProvider)
             } catch (ex: Exception) {
                 Log.e(TAG, "Load failed: ${ex.message}")
                 release()
@@ -78,6 +83,7 @@ class XAsrEngine(private val context: Context) {
     fun release() {
         recognizer?.release()
         recognizer = null
+        activeProvider = "unknown"
     }
 
     fun createStream(): OnlineStream? = recognizer?.createStream()
@@ -117,6 +123,7 @@ class XAsrEngine(private val context: Context) {
     data class LoadResult(
         val success: Boolean,
         val error: String? = null,
+        val provider: String = "unknown",
     )
 
     companion object {

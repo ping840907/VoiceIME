@@ -124,7 +124,15 @@ class ImeSettingsActivity : AppCompatActivity() {
         observeJob = scope.launch {
             launch {
                 ModelDownloadState.active.collect { active ->
-                    if (active != null) showDownloadProgress(active.progress) else hideDownloadProgress()
+                    if (active != null) {
+                        showDownloadProgress(active.progress)
+                    } else {
+                        // Also resets the button text/enabled state — don't rely solely on the
+                        // one-shot `results` event, which is lost if this screen wasn't
+                        // observing (e.g. backgrounded) at the moment the download finished.
+                        hideDownloadProgress()
+                        updateModelStatus()
+                    }
                 }
             }
             launch {
