@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 object ModelDownloadState {
 
-    data class Active(val engine: String, val progress: ModelDownloader.Progress)
+    data class Active(val engine: String, val progress: ModelDownloader.Progress, val startedAtMs: Long)
 
     private val _active = MutableStateFlow<Active?>(null)
     val active: StateFlow<Active?> = _active
@@ -20,7 +20,9 @@ object ModelDownloadState {
     val results = MutableSharedFlow<Pair<String, Result<Unit>>>(extraBufferCapacity = 1)
 
     fun update(engine: String, progress: ModelDownloader.Progress) {
-        _active.value = Active(engine, progress)
+        val startedAt = _active.value?.takeIf { it.engine == engine }?.startedAtMs
+            ?: System.currentTimeMillis()
+        _active.value = Active(engine, progress, startedAt)
     }
 
     fun clear() {

@@ -1,11 +1,13 @@
 package com.ping.voiceim
 
+import android.animation.ObjectAnimator
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.ProgressBar
@@ -25,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -40,6 +43,7 @@ class ImeSettingsActivity : AppCompatActivity() {
     private lateinit var btnDownloadModel: Button
     private lateinit var tvDownloadStatus: TextView
     private lateinit var progressDownload: ProgressBar
+    private var pulseAnimator: ObjectAnimator? = null
 
     private val requestMic = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -125,7 +129,7 @@ class ImeSettingsActivity : AppCompatActivity() {
             launch {
                 ModelDownloadState.active.collect { active ->
                     if (active != null) {
-                        showDownloadProgress(active.progress)
+                        renderDownloadStatus(active)
                     } else {
                         // Also resets the button text/enabled state — don't rely solely on the
                         // one-shot `results` event, which is lost if this screen wasn't
@@ -146,12 +150,22 @@ class ImeSettingsActivity : AppCompatActivity() {
                     updateModelStatus()
                 }
             }
+            // Ticks the elapsed-time readout every second even between progress updates —
+            // a slow single-file decompression can otherwise go a long stretch with no visible
+            // change at all, which is indistinguishable from being frozen.
+            launch {
+                while (true) {
+                    delay(1000)
+                    ModelDownloadState.active.value?.let { renderDownloadStatus(it) }
+                }
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
         observeJob?.cancel()
+        stopPulse()
     }
 
     override fun onResume() {
@@ -229,7 +243,8 @@ class ImeSettingsActivity : AppCompatActivity() {
                 .setMessage(
                     "即將下載約 ${ModelDownloader.formatBytes(bytes)} 的模型檔案，下載會在背景繼續進行，" +
                         "關閉螢幕或切換到其他 App 不會中斷。\n" +
-                        "辨識過程仍完全在裝置本機執行，僅此下載步驟需要網路連線（可能產生行動數據流量費用）。\n\n是否繼續？"
+                        "辨識過程仍完全在裝置本機執行，僅此下載步驟需要網路連線（可能產生行動數據流量費用）。\n\n" +
+                        "下載完成後還需要在裝置上解壓縮，視機型效能可能需要數分鐘甚至更久——過程中畫面數字變化較慢是正常現象，請耐心等候，不需要中途取消重試。\n\n是否繼續？"
                 )
                 .setPositiveButton("開始下載") { _, _ -> requestNotificationsThenDownload() }
                 .setNegativeButton("取消", null)
@@ -252,17 +267,50 @@ class ImeSettingsActivity : AppCompatActivity() {
         ModelDownloadService.start(this, engine)
     }
 
-    private fun showDownloadProgress(progress: ModelDownloader.Progress) {
+    private fun renderDownloadStatus(active: ModelDownloadState.Active) {
+        val progress = active.progress
         btnDownloadModel.isEnabled = true
         btnDownloadModel.text = "取消下載"
         tvDownloadStatus.visibility = TextView.VISIBLE
         progressDownload.visibility = ProgressBar.VISIBLE
         progressDownload.isIndeterminate = progress.percent < 0
         if (progress.percent >= 0) progressDownload.progress = progress.percent
-        tvDownloadStatus.text = if (progress.percent >= 0) "${progress.label} ${progress.percent}%" else progress.label
+        startPulseIfNeeded()
+
+        val elapsed = formatElapsed(System.currentTimeMillis() - active.startedAtMs)
+        tvDownloadStatus.text = buildString {
+            append(progress.label)
+            if (progress.percent >= 0) append(" ${progress.percent}%")
+            append(" · 已耗時 $elapsed")
+        }
+    }
+
+    private fun formatElapsed(elapsedMs: Long): String {
+        val totalSeconds = (elapsedMs / 1000).coerceAtLeast(0)
+        val m = totalSeconds / 60
+        val s = totalSeconds % 60
+        return if (m > 0) "${m} 分 ${s} 秒" else "${s} 秒"
+    }
+
+    /** Subtle breathing animation so the bar visibly reads as "alive" even between real updates. */
+    private fun startPulseIfNeeded() {
+        if (pulseAnimator?.isRunning == true) return
+        pulseAnimator = ObjectAnimator.ofFloat(progressDownload, "alpha", 1f, 0.55f, 1f).apply {
+            duration = 1200
+            repeatCount = ObjectAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            start()
+        }
+    }
+
+    private fun stopPulse() {
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+        progressDownload.alpha = 1f
     }
 
     private fun hideDownloadProgress() {
+        stopPulse()
         tvDownloadStatus.visibility = TextView.GONE
         progressDownload.visibility = ProgressBar.GONE
     }

@@ -58,8 +58,8 @@ class ModelDownloader(private val context: Context) {
                     val pct = if (total > 0) ((done * 90) / total).toInt() else -1
                     onProgress(Progress("下載中…", pct))
                 }
-                extractTarBz2(archiveFile, stagingDir) { fraction ->
-                    onProgress(Progress("解壓縮中…", (fraction * 100).toInt().coerceIn(0, 100)))
+                extractTarBz2(archiveFile, stagingDir) { fraction, currentFile ->
+                    onProgress(Progress("解壓縮中：$currentFile", (fraction * 100).toInt().coerceIn(0, 100)))
                 }
                 archiveFile.delete()
                 if (target.engine == ModelConfig.ENGINE_QWEN3) verifyQwen3Files(stagingDir)
@@ -155,13 +155,17 @@ class ModelDownloader(private val context: Context) {
 
     /**
      * Extracts entries into [targetDir], stripping each entry's first path component.
-     * [onProgress] receives the fraction (0f..1f) of the *compressed* archive consumed so
-     * far — decompression is CPU-bound and can take a while on-device, so this gives the UI
-     * something better than an indeterminate spinner to show it isn't actually stuck.
+     * [onProgress] receives the fraction (0f..1f) of the *compressed* archive consumed so far,
+     * plus the name of the file currently being written. Reported per chunk (not per whole
+     * file) so a single very large file (e.g. the encoder) doesn't leave the UI looking frozen
+     * for however long that one file takes to decompress — decompression is CPU-bound and can
+     * take a long time on-device.
      */
-    private fun extractTarBz2(archiveFile: File, targetDir: File, onProgress: (Float) -> Unit) {
+    private fun extractTarBz2(archiveFile: File, targetDir: File, onProgress: (Float, String) -> Unit) {
         val archiveSize = archiveFile.length().coerceAtLeast(1L)
         val counting = CountingInputStream(BufferedInputStream(archiveFile.inputStream()))
+        var lastReportedBytes = 0L
+        val reportEveryBytes = 128 * 1024L // throttle UI updates to ~every 128KB consumed
         counting.use { fis ->
             // decompressConcatenated=true: some tools (e.g. pbzip2) emit multi-stream bzip2
             // archives. Without this flag, BZip2CompressorInputStream silently stops after the
@@ -181,7 +185,20 @@ class ModelDownloader(private val context: Context) {
                                 outFile.mkdirs()
                             } else {
                                 outFile.parentFile?.mkdirs()
-                                val copied = FileOutputStream(outFile).use { out -> tarIn.copyTo(out) }
+                                var copied = 0L
+                                FileOutputStream(outFile).use { out ->
+                                    val buf = ByteArray(64 * 1024)
+                                    while (true) {
+                                        val n = tarIn.read(buf)
+                                        if (n < 0) break
+                                        out.write(buf, 0, n)
+                                        copied += n
+                                        if (counting.bytesRead - lastReportedBytes >= reportEveryBytes) {
+                                            lastReportedBytes = counting.bytesRead
+                                            onProgress(counting.bytesRead.toFloat() / archiveSize, relPath)
+                                        }
+                                    }
+                                }
                                 if (copied != entry.size) {
                                     throw IOException(
                                         "解壓縮失敗：${relPath} 大小不符（預期 ${entry.size}，實際 $copied），封存檔可能已損毀"
@@ -189,7 +206,8 @@ class ModelDownloader(private val context: Context) {
                                 }
                             }
                         }
-                        onProgress(counting.bytesRead.toFloat() / archiveSize)
+                        lastReportedBytes = counting.bytesRead
+                        onProgress(counting.bytesRead.toFloat() / archiveSize, relPath)
                         entry = tarIn.nextTarEntry
                     }
                 }
