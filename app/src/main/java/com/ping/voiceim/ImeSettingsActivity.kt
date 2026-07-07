@@ -3,6 +3,7 @@ package com.ping.voiceim
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
@@ -18,8 +19,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.ping.voiceim.engine.ModelConfig
 import com.ping.voiceim.engine.ModelDownloadSpec
+import com.ping.voiceim.engine.ModelDownloadState
 import com.ping.voiceim.engine.ModelDownloader
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,9 +30,12 @@ import java.io.File
 
 class ImeSettingsActivity : AppCompatActivity() {
 
+    // Only used for the lightweight "estimate size" HEAD check and for observing
+    // ModelDownloadService's progress while this screen is visible — the actual
+    // download runs in the service and is unaffected by this scope's lifecycle.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val downloader by lazy { ModelDownloader(this) }
-    private var downloadJob: Job? = null
+    private var observeJob: Job? = null
 
     private lateinit var btnDownloadModel: Button
     private lateinit var tvDownloadStatus: TextView
@@ -45,6 +49,12 @@ class ImeSettingsActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.tv_mic_status).text =
                 "⚠ 麥克風權限遭拒，請至應用程式設定手動授予"
         }
+    }
+
+    private val requestNotifications = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* proceed regardless — download still runs, only the progress notification depends on this */
+        beginDownload()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +78,10 @@ class ImeSettingsActivity : AppCompatActivity() {
             imm.showInputMethodPicker()
         }
 
+        findViewById<Button>(R.id.btn_open_dict).setOnClickListener {
+            startActivity(Intent(this, DictSettingsActivity::class.java))
+        }
+
         // Engine selection
         val rg = findViewById<RadioGroup>(R.id.rg_engine)
         val currentEngine = ModelConfig.selectedEngine(this)
@@ -79,7 +93,7 @@ class ImeSettingsActivity : AppCompatActivity() {
         }
 
         btnDownloadModel.setOnClickListener {
-            if (downloadJob?.isActive == true) cancelDownload() else confirmAndDownload()
+            if (ModelDownloadState.active.value != null) cancelDownload() else confirmAndDownload()
         }
 
         // VAD silence duration slider (0.5s .. 3.0s in 0.1s steps)
@@ -101,6 +115,35 @@ class ImeSettingsActivity : AppCompatActivity() {
 
         updateModelStatus()
         updateMicStatus()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Reflect whatever ModelDownloadService is already doing (survives this
+        // Activity being recreated / having been away while a download ran).
+        observeJob = scope.launch {
+            launch {
+                ModelDownloadState.active.collect { active ->
+                    if (active != null) showDownloadProgress(active.progress) else hideDownloadProgress()
+                }
+            }
+            launch {
+                ModelDownloadState.results.collect { (_, result) ->
+                    hideDownloadProgress()
+                    result.onSuccess {
+                        Toast.makeText(this@ImeSettingsActivity, "模型下載完成", Toast.LENGTH_LONG).show()
+                    }.onFailure { ex ->
+                        Toast.makeText(this@ImeSettingsActivity, "下載失敗：${ex.message}", Toast.LENGTH_LONG).show()
+                    }
+                    updateModelStatus()
+                }
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        observeJob?.cancel()
     }
 
     override fun onResume() {
@@ -127,7 +170,8 @@ class ImeSettingsActivity : AppCompatActivity() {
         val ready = isModelReady(engine)
         tv.text = if (ready) buildReadyStatus(engine) else buildMissingStatus(engine)
 
-        if (downloadJob?.isActive != true) {
+        val downloading = ModelDownloadState.active.value != null
+        if (!downloading) {
             btnDownloadModel.isEnabled = true
             btnDownloadModel.text = if (ready) "重新下載模型" else "下載模型"
         }
@@ -175,53 +219,49 @@ class ImeSettingsActivity : AppCompatActivity() {
             AlertDialog.Builder(this@ImeSettingsActivity)
                 .setTitle("下載模型")
                 .setMessage(
-                    "即將下載約 ${ModelDownloader.formatBytes(bytes)} 的模型檔案。\n" +
+                    "即將下載約 ${ModelDownloader.formatBytes(bytes)} 的模型檔案，下載會在背景繼續進行，" +
+                        "關閉螢幕或切換到其他 App 不會中斷。\n" +
                         "辨識過程仍完全在裝置本機執行，僅此下載步驟需要網路連線（可能產生行動數據流量費用）。\n\n是否繼續？"
                 )
-                .setPositiveButton("開始下載") { _, _ -> startDownload(target) }
+                .setPositiveButton("開始下載") { _, _ -> requestNotificationsThenDownload() }
                 .setNegativeButton("取消", null)
                 .show()
         }
     }
 
-    private fun startDownload(target: ModelDownloadSpec.DownloadTarget) {
-        btnDownloadModel.text = "取消下載"
-        tvDownloadStatus.visibility = TextView.VISIBLE
-        progressDownload.visibility = ProgressBar.VISIBLE
-        progressDownload.isIndeterminate = false
-        progressDownload.progress = 0
-        tvDownloadStatus.text = "準備下載…"
-
-        downloadJob = scope.launch {
-            val result = downloader.download(target) { progress ->
-                runOnUiThread {
-                    progressDownload.isIndeterminate = progress.percent < 0
-                    if (progress.percent >= 0) progressDownload.progress = progress.percent
-                    tvDownloadStatus.text = if (progress.percent >= 0)
-                        "${progress.label} ${progress.percent}%" else progress.label
-                }
-            }
-
-            tvDownloadStatus.visibility = TextView.GONE
-            progressDownload.visibility = ProgressBar.GONE
-            btnDownloadModel.isEnabled = true
-
-            result.onSuccess {
-                Toast.makeText(this@ImeSettingsActivity, "模型下載完成", Toast.LENGTH_LONG).show()
-            }.onFailure { ex ->
-                if (ex !is CancellationException) {
-                    Toast.makeText(this@ImeSettingsActivity, "下載失敗：${ex.message}", Toast.LENGTH_LONG).show()
-                }
-            }
-            updateModelStatus()
+    private fun requestNotificationsThenDownload() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            beginDownload()
         }
     }
 
-    private fun cancelDownload() {
-        downloadJob?.cancel()
-        downloadJob = null
+    private fun beginDownload() {
+        val engine = ModelConfig.selectedEngine(this)
+        ModelDownloadService.start(this, engine)
+    }
+
+    private fun showDownloadProgress(progress: ModelDownloader.Progress) {
+        btnDownloadModel.isEnabled = true
+        btnDownloadModel.text = "取消下載"
+        tvDownloadStatus.visibility = TextView.VISIBLE
+        progressDownload.visibility = ProgressBar.VISIBLE
+        progressDownload.isIndeterminate = progress.percent < 0
+        if (progress.percent >= 0) progressDownload.progress = progress.percent
+        tvDownloadStatus.text = if (progress.percent >= 0) "${progress.label} ${progress.percent}%" else progress.label
+    }
+
+    private fun hideDownloadProgress() {
         tvDownloadStatus.visibility = TextView.GONE
         progressDownload.visibility = ProgressBar.GONE
+    }
+
+    private fun cancelDownload() {
+        ModelDownloadService.cancel(this)
+        hideDownloadProgress()
         updateModelStatus()
     }
 }

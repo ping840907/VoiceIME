@@ -62,7 +62,7 @@
                         android:id="@+id/rb_qwen3"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Qwen3-ASR（離線，opencc4j 繁體轉換）"
+                        android:text="Qwen3-ASR（精準，可對齊自訂詞彙，支援停頓偵測）"
                         android:textSize="14sp"
                         android:textColor="@color/text_primary"
                         android:layout_marginBottom="8dp" />
@@ -71,7 +71,7 @@
                         android:id="@+id/rb_xasr"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="X-ASR（串流，原生繁體中文）"
+                        android:text="X-ASR（快速，不自動加標點）"
                         android:textSize="14sp"
                         android:textColor="@color/text_primary" />
                 </RadioGroup>
@@ -188,6 +188,14 @@
                     android:max="25" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+        <!-- Dictionary shortcut -->
+        <Button
+            android:id="@+id/btn_open_dict"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="管理自訂詞彙"
+            android:layout_marginBottom="20dp" />
 
         <!-- Mic permission -->
         <TextView

@@ -5,6 +5,9 @@
 
     <!-- Model downloading only: recognition itself always runs fully on-device -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -30,6 +33,12 @@
             android:name=".DictSettingsActivity"
             android:exported="false"
             android:label="自定義詞彙" />
+
+        <!-- Model download: keeps running across screen-off / app-switch via foreground service -->
+        <service
+            android:name=".ModelDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Voice IME service -->
         <service

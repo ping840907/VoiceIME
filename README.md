@@ -35,7 +35,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 |------|------|
 | `VoiceImeService` | `InputMethodService` 主體，管理鍵盤 UI 與輸入流程 |
 | `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援，含 UserDictionary 熱詞 |
-| `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer），含 UserDictionary 熱詞 |
+| `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer） |
 | `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止），支援離線與串流兩種模式 |
 | `SelectableTextView` | 自製長按 + 拖曳選取 TextView，不觸發系統焦點搶奪 |
 | `UserDictionary` | SharedPreferences JSON 詞彙庫 |
@@ -106,7 +106,9 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 兩個引擎可在設定頁切換，選擇持久化於 `SharedPreferences("asr_engine_selection")`。
 
-### Qwen3-ASR（離線，預設）
+### Qwen3-ASR（精準，可對齊自訂詞彙，支援停頓偵測，預設）
+
+辨識較準確，會依 UserDictionary 自動對齊使用者自訂的詞彙，並可在設定頁調整停頓偵測靈敏度（多久沒說話就自動停止錄音）。
 
 | Provider 優先順序 | 說明 |
 |-----------------|------|
@@ -115,11 +117,11 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。UserDictionary 詞彙在載入引擎時作為熱詞（`OfflineQwen3AsrModelConfig.hotwords`）注入，詞彙更新時自動重新載入。
 
-### X-ASR（串流，原生繁體）
+### X-ASR（快速，不自動加標點）
+
+即時串流辨識，邊說邊顯示結果，速度較快，但不會自動加入標點符號，也不支援自訂詞彙熱詞。
 
 基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
-
-使用 `modified_beam_search` 解碼（transducer 熱詞的必要條件）。UserDictionary 詞彙於每次錄音時透過 `createStream(hotwords)` 動態傳入，無需重載引擎。
 
 ---
 
