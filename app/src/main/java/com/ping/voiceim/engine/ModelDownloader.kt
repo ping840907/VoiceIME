@@ -54,6 +54,7 @@ class ModelDownloader(private val context: Context) {
                 onProgress(Progress("解壓縮中…", -1))
                 extractTarBz2(archiveFile, dir)
                 archiveFile.delete()
+                if (target.engine == ModelConfig.ENGINE_QWEN3) verifyQwen3Files(dir)
             } else {
                 val n = target.files.size
                 target.files.forEachIndexed { i, f ->
@@ -67,6 +68,27 @@ class ModelDownloader(private val context: Context) {
         } catch (ex: Exception) {
             Log.e(TAG, "Download failed: ${ex.message}", ex)
             Result.failure(ex)
+        }
+    }
+
+    /**
+     * Sanity-check that extraction actually produced usable model files. A truncated or
+     * corrupt archive (e.g. from the multi-stream bzip2 issue above) can otherwise leave
+     * empty/partial files in place that only fail much later — as a native abort when
+     * onnxruntime tries to parse them during model load.
+     */
+    private fun verifyQwen3Files(dir: File) {
+        val required = listOf(
+            File(dir, ModelConfig.QWEN3_ASR_CONV_FRONTEND),
+            File(dir, ModelConfig.QWEN3_ASR_ENCODER),
+            File(dir, ModelConfig.QWEN3_ASR_DECODER),
+        )
+        val broken = required.filter { !it.exists() || it.length() == 0L }
+        val tokenizerDir = File(dir, ModelConfig.QWEN3_ASR_TOKENIZER_DIR)
+        if (broken.isNotEmpty() || !tokenizerDir.isDirectory || tokenizerDir.listFiles().isNullOrEmpty()) {
+            throw IOException(
+                "模型檔案不完整或已損毀（${broken.joinToString { it.name }.ifEmpty { "tokenizer/" }}），請重新下載"
+            )
         }
     }
 
@@ -123,7 +145,11 @@ class ModelDownloader(private val context: Context) {
     /** Extracts entries into [targetDir], stripping each entry's first path component. */
     private fun extractTarBz2(archiveFile: File, targetDir: File) {
         BufferedInputStream(archiveFile.inputStream()).use { fis ->
-            BZip2CompressorInputStream(fis).use { bzIn ->
+            // decompressConcatenated=true: some tools (e.g. pbzip2) emit multi-stream bzip2
+            // archives. Without this flag, BZip2CompressorInputStream silently stops after the
+            // first stream, truncating the tar — files further into the archive (like the
+            // decoder) end up corrupt/incomplete even though the download itself succeeded.
+            BZip2CompressorInputStream(fis, true).use { bzIn ->
                 TarArchiveInputStream(bzIn).use { tarIn ->
                     var entry = tarIn.nextTarEntry
                     while (entry != null) {
@@ -137,7 +163,12 @@ class ModelDownloader(private val context: Context) {
                                 outFile.mkdirs()
                             } else {
                                 outFile.parentFile?.mkdirs()
-                                FileOutputStream(outFile).use { out -> tarIn.copyTo(out) }
+                                val copied = FileOutputStream(outFile).use { out -> tarIn.copyTo(out) }
+                                if (copied != entry.size) {
+                                    throw IOException(
+                                        "解壓縮失敗：${relPath} 大小不符（預期 ${entry.size}，實際 $copied），封存檔可能已損毀"
+                                    )
+                                }
                             }
                         }
                         entry = tarIn.nextTarEntry

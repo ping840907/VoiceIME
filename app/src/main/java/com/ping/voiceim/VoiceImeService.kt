@@ -283,8 +283,10 @@ class VoiceImeService : InputMethodService() {
         return provider?.let { providerDisplayName(it) } ?: ""
     }
 
+    // NNAPI routes to whichever accelerator the device vendor exposes (NPU and/or GPU);
+    // there's no reliable way to tell which one it actually picked, so describe both.
     private fun providerDisplayName(provider: String) = when (provider) {
-        "nnapi" -> "NNAPI"
+        "nnapi" -> "NPU/GPU"
         "cpu"   -> "CPU"
         else    -> provider
     }
