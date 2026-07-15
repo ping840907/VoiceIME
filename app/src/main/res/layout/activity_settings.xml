@@ -75,6 +75,49 @@
                         android:textSize="14sp"
                         android:textColor="@color/text_primary" />
                 </RadioGroup>
+
+                <!-- Qwen3 model size — only shown when Qwen3-ASR is selected -->
+                <LinearLayout
+                    android:id="@+id/layout_qwen3_size"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="12dp"
+                    android:paddingStart="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="模型大小"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="6dp" />
+
+                    <RadioGroup
+                        android:id="@+id/rg_qwen3_size"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rb_qwen3_06b"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="0.6B（較小，下載快、辨識速度快）"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:layout_marginBottom="6dp" />
+
+                        <RadioButton
+                            android:id="@+id/rb_qwen3_17b"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="1.7B（較大，可能更準確，下載/辨識較慢）"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary" />
+                    </RadioGroup>
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 

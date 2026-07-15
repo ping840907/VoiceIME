@@ -10,13 +10,31 @@ object ModelConfig {
     const val ENGINE_QWEN3  = "qwen3"
     const val ENGINE_X_ASR  = "x_asr"
 
-    // ── Qwen3-ASR-0.6B-int8 (offline, Simplified→Traditional via OpenCC) ─────
+    // ── Qwen3-ASR-int8 (offline, Simplified→Traditional via OpenCC) ──────────
+    // Two model sizes are supported, kept in separate directories so switching
+    // sizes never requires re-downloading the other one, and existing 0.6B
+    // installs (directory name predates this feature) stay valid untouched.
+    const val QWEN3_SIZE_06B = "0.6b"
+    const val QWEN3_SIZE_17B = "1.7b"
+
     const val QWEN3_ASR_DIR           = "qwen3_asr"
+    const val QWEN3_ASR_DIR_17B       = "qwen3_asr_1.7b"
     const val QWEN3_ASR_CONV_FRONTEND = "conv_frontend.onnx"
     const val QWEN3_ASR_ENCODER       = "encoder.int8.onnx"
     const val QWEN3_ASR_DECODER       = "decoder.int8.onnx"
     const val QWEN3_ASR_TOKENIZER_DIR = "tokenizer"
     const val QWEN3_ASR_THREADS       = 4
+
+    private const val PREF_QWEN3_SIZE = "qwen3_model_size"
+    private const val KEY_QWEN3_SIZE  = "size"
+
+    fun qwen3ModelSize(context: Context): String =
+        context.getSharedPreferences(PREF_QWEN3_SIZE, Context.MODE_PRIVATE)
+            .getString(KEY_QWEN3_SIZE, QWEN3_SIZE_06B) ?: QWEN3_SIZE_06B
+
+    fun setQwen3ModelSize(context: Context, size: String) =
+        context.getSharedPreferences(PREF_QWEN3_SIZE, Context.MODE_PRIVATE)
+            .edit().putString(KEY_QWEN3_SIZE, size).apply()
 
     // ── X-ASR streaming transducer (online, native Traditional Chinese) ───────
     // Model files from: https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m
@@ -58,7 +76,10 @@ object ModelConfig {
             ?: context.filesDir.absolutePath + "/models"
 
     // Qwen3
-    fun qwen3AsrDir(context: Context)             = "${modelsDir(context)}/$QWEN3_ASR_DIR"
+    fun qwen3AsrDir(context: Context): String {
+        val dirName = if (qwen3ModelSize(context) == QWEN3_SIZE_17B) QWEN3_ASR_DIR_17B else QWEN3_ASR_DIR
+        return "${modelsDir(context)}/$dirName"
+    }
     fun qwen3AsrConvFrontendPath(context: Context) = "${qwen3AsrDir(context)}/$QWEN3_ASR_CONV_FRONTEND"
     fun qwen3AsrEncoderPath(context: Context)      = "${qwen3AsrDir(context)}/$QWEN3_ASR_ENCODER"
     fun qwen3AsrDecoderPath(context: Context)      = "${qwen3AsrDir(context)}/$QWEN3_ASR_DECODER"

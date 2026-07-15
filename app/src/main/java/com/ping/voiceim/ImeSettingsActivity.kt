@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -88,11 +89,24 @@ class ImeSettingsActivity : AppCompatActivity() {
 
         // Engine selection
         val rg = findViewById<RadioGroup>(R.id.rg_engine)
+        val layoutQwen3Size = findViewById<View>(R.id.layout_qwen3_size)
         val currentEngine = ModelConfig.selectedEngine(this)
         rg.check(if (currentEngine == ModelConfig.ENGINE_X_ASR) R.id.rb_xasr else R.id.rb_qwen3)
+        layoutQwen3Size.visibility = if (currentEngine == ModelConfig.ENGINE_X_ASR) View.GONE else View.VISIBLE
         rg.setOnCheckedChangeListener { _, checkedId ->
             val engine = if (checkedId == R.id.rb_xasr) ModelConfig.ENGINE_X_ASR else ModelConfig.ENGINE_QWEN3
             ModelConfig.setSelectedEngine(this, engine)
+            layoutQwen3Size.visibility = if (engine == ModelConfig.ENGINE_X_ASR) View.GONE else View.VISIBLE
+            updateModelStatus()
+        }
+
+        // Qwen3 model size selection
+        val rgQwen3Size = findViewById<RadioGroup>(R.id.rg_qwen3_size)
+        val currentSize = ModelConfig.qwen3ModelSize(this)
+        rgQwen3Size.check(if (currentSize == ModelConfig.QWEN3_SIZE_17B) R.id.rb_qwen3_17b else R.id.rb_qwen3_06b)
+        rgQwen3Size.setOnCheckedChangeListener { _, checkedId ->
+            val size = if (checkedId == R.id.rb_qwen3_17b) ModelConfig.QWEN3_SIZE_17B else ModelConfig.QWEN3_SIZE_06B
+            ModelConfig.setQwen3ModelSize(this, size)
             updateModelStatus()
         }
 
@@ -214,21 +228,24 @@ class ImeSettingsActivity : AppCompatActivity() {
         ).all { File(it).exists() } && File(ModelConfig.qwen3AsrTokenizerDir(this)).isDirectory
     }
 
+    private fun qwen3SizeLabel(): String =
+        if (ModelConfig.qwen3ModelSize(this) == ModelConfig.QWEN3_SIZE_17B) "1.7B" else "0.6B"
+
     private fun buildReadyStatus(engine: String): String {
         val dir = if (engine == ModelConfig.ENGINE_X_ASR) ModelConfig.xAsrDir(this) else ModelConfig.qwen3AsrDir(this)
-        val name = if (engine == ModelConfig.ENGINE_X_ASR) "X-ASR" else "Qwen3-ASR"
+        val name = if (engine == ModelConfig.ENGINE_X_ASR) "X-ASR" else "Qwen3-ASR ${qwen3SizeLabel()}"
         return "✓ $name 模型已就緒\n路徑: $dir"
     }
 
     private fun buildMissingStatus(engine: String): String = if (engine == ModelConfig.ENGINE_X_ASR) {
         "⚠ X-ASR 模型尚未下載\n路徑: ${ModelConfig.xAsrDir(this)}\n\n點擊下方「下載模型」自動安裝，或參閱 README 手動放置。"
     } else {
-        "⚠ Qwen3-ASR 模型尚未下載\n路徑: ${ModelConfig.qwen3AsrDir(this)}\n\n點擊下方「下載模型」自動安裝，或參閱 README 手動放置。"
+        "⚠ Qwen3-ASR ${qwen3SizeLabel()} 模型尚未下載\n路徑: ${ModelConfig.qwen3AsrDir(this)}\n\n點擊下方「下載模型」自動安裝，或參閱 README 手動放置。"
     }
 
     private fun confirmAndDownload() {
         val engine = ModelConfig.selectedEngine(this)
-        val target = ModelDownloadSpec.forEngine(engine)
+        val target = ModelDownloadSpec.forEngine(this, engine)
 
         btnDownloadModel.isEnabled = false
         btnDownloadModel.text = "檢查檔案大小…"

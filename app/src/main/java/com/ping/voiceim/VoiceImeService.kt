@@ -259,7 +259,7 @@ class VoiceImeService : InputMethodService() {
                 }
             }
         } else {
-            if (qwen3Asr.value.isLoaded()) return
+            if (qwen3Asr.value.isLoaded() && !qwen3NeedsReload()) return
             setState(State.LOADING)
             scope.launch {
                 val result = qwen3Asr.value.load(buildHotwords())
@@ -271,6 +271,11 @@ class VoiceImeService : InputMethodService() {
             }
         }
     }
+
+    /** True if the loaded Qwen3 recognizer no longer matches the current hotwords/model-size selection. */
+    private fun qwen3NeedsReload(): Boolean =
+        buildHotwords() != qwen3Asr.value.loadedHotwords ||
+            qwen3Asr.value.loadedModelSize != ModelConfig.qwen3ModelSize(this)
 
     /** Hardware provider label for whichever engine is currently selected, or "" if not loaded. */
     private fun currentAcceleratorLabel(): String {
@@ -309,25 +314,12 @@ class VoiceImeService : InputMethodService() {
             if (!xAsr.value.isLoaded()) { preloadModel(); return }
             startStreamingRecording()
         } else {
-            val hotwords = buildHotwords()
-            if (!qwen3Asr.value.isLoaded()) {
+            // (Re)load if not loaded yet, or if hotwords/model size no longer match — a
+            // no-op check inside load() itself makes this cheap when nothing changed.
+            if (!qwen3Asr.value.isLoaded() || qwen3NeedsReload()) {
                 setState(State.LOADING)
                 scope.launch {
-                    val result = qwen3Asr.value.load(hotwords)
-                    if (result.success) {
-                        startOfflineRecording()
-                    } else {
-                        setState(State.IDLE)
-                        showToast("模型載入失敗: ${result.error}")
-                    }
-                }
-                return
-            }
-            // Reload if hotwords changed (fast no-op when unchanged)
-            if (hotwords != qwen3Asr.value.loadedHotwords) {
-                setState(State.LOADING)
-                scope.launch {
-                    val result = qwen3Asr.value.load(hotwords)
+                    val result = qwen3Asr.value.load(buildHotwords())
                     if (result.success) {
                         startOfflineRecording()
                     } else {
