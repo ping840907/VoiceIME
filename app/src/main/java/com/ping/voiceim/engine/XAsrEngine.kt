@@ -42,41 +42,51 @@ class XAsrEngine(private val context: Context) {
 
             release()
 
-            try {
-                recognizer = OnlineRecognizer(
-                    config = OnlineRecognizerConfig(
-                        featConfig = FeatureConfig(
-                            sampleRate = ModelConfig.ASR_SAMPLE_RATE,
-                            featureDim = 80,
-                        ),
-                        modelConfig = OnlineModelConfig(
-                            transducer = OnlineTransducerModelConfig(
-                                encoder = encoder,
-                                decoder = decoder,
-                                joiner  = joiner,
+            // Try NNAPI first, same as Qwen3AsrEngine — falls back to CPU if unavailable or if
+            // the streaming transducer graph isn't NNAPI-compatible on this device. Unverified
+            // on real hardware: streaming models push many small inference calls per second,
+            // where NNAPI's per-call marshaling overhead can outweigh any speedup, and some
+            // vendor NNAPI drivers reject/partially-fallback dynamic-state graphs. If this
+            // causes a native crash (uncaught C++ exception) rather than a catchable one here,
+            // it needs to be reported and reverted to CPU-only.
+            var lastError: Exception? = null
+            for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
+                try {
+                    recognizer = OnlineRecognizer(
+                        config = OnlineRecognizerConfig(
+                            featConfig = FeatureConfig(
+                                sampleRate = ModelConfig.ASR_SAMPLE_RATE,
+                                featureDim = 80,
                             ),
-                            tokens     = tokens,
-                            numThreads = ModelConfig.X_ASR_THREADS,
-                            provider   = "cpu",
-                        ),
-                        endpointConfig = EndpointConfig(
-                            rule1 = EndpointRule(false, 2.4f, 0f),
-                            rule2 = EndpointRule(true,  1.2f, 10f),
-                            rule3 = EndpointRule(false, 0f,   20f),
-                        ),
-                        enableEndpoint = true,
-                        decodingMethod = "greedy_search",
-                        maxActivePaths = 4,
+                            modelConfig = OnlineModelConfig(
+                                transducer = OnlineTransducerModelConfig(
+                                    encoder = encoder,
+                                    decoder = decoder,
+                                    joiner  = joiner,
+                                ),
+                                tokens     = tokens,
+                                numThreads = ModelConfig.X_ASR_THREADS,
+                                provider   = provider,
+                            ),
+                            endpointConfig = EndpointConfig(
+                                rule1 = EndpointRule(false, 2.4f, 0f),
+                                rule2 = EndpointRule(true,  1.2f, 10f),
+                                rule3 = EndpointRule(false, 0f,   20f),
+                            ),
+                            enableEndpoint = true,
+                            decodingMethod = "greedy_search",
+                            maxActivePaths = 4,
+                        )
                     )
-                )
-                activeProvider = "cpu"
-                Log.i(TAG, "Loaded — threads=${ModelConfig.X_ASR_THREADS}")
-                LoadResult(true, provider = activeProvider)
-            } catch (ex: Exception) {
-                Log.e(TAG, "Load failed: ${ex.message}")
-                release()
-                LoadResult(false, error = ex.message)
+                    activeProvider = provider
+                    Log.i(TAG, "Loaded — provider=$provider  threads=${ModelConfig.X_ASR_THREADS}")
+                    return@withContext LoadResult(true, provider = provider)
+                } catch (ex: Exception) {
+                    Log.w(TAG, "Provider '$provider' failed: ${ex.message}")
+                    lastError = ex
+                }
             }
+            LoadResult(false, error = lastError?.message ?: "All providers failed")
         }
     }
 
