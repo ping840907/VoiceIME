@@ -30,8 +30,6 @@ class Qwen3AsrEngine(private val context: Context) {
     private val loadMutex = Mutex()
     @Volatile var loadedHotwords: String = ""
         private set
-    @Volatile var loadedModelSize: String = ""
-        private set
 
     /** Provider that successfully initialized the recognizer, e.g. "nnapi" or "cpu". */
     var activeProvider: String = "unknown"
@@ -42,12 +40,10 @@ class Qwen3AsrEngine(private val context: Context) {
     /**
      * Load (or reload) the recognizer.
      * [hotwords] is a newline-separated list of words/phrases to boost during decoding.
-     * If the engine is already loaded with the same hotwords AND model size, this is a no-op.
+     * If the engine is already loaded with the same hotwords, this is a no-op.
      */
     suspend fun load(hotwords: String = ""): LoadResult = loadMutex.withLock {
-        val currentSize = ModelConfig.qwen3ModelSize(context)
-        if (isLoaded() && loadedHotwords == hotwords && loadedModelSize == currentSize)
-            return@withLock LoadResult(true, provider = activeProvider)
+        if (isLoaded() && loadedHotwords == hotwords) return@withLock LoadResult(true, provider = activeProvider)
         withContext(Dispatchers.IO) {
             val convFrontend = ModelConfig.qwen3AsrConvFrontendPath(context)
             val encoder      = ModelConfig.qwen3AsrEncoderPath(context)
@@ -86,7 +82,6 @@ class Qwen3AsrEngine(private val context: Context) {
                         )
                     )
                     loadedHotwords = hotwords
-                    loadedModelSize = currentSize
                     activeProvider = provider
                     // Persist so ImeSettingsActivity can read it without binding the service
                     context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -106,7 +101,6 @@ class Qwen3AsrEngine(private val context: Context) {
         recognizer?.release()
         recognizer = null
         loadedHotwords = ""
-        loadedModelSize = ""
     }
 
     suspend fun transcribe(samples: FloatArray): String = withContext(Dispatchers.IO) {

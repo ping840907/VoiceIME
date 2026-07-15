@@ -1,7 +1,5 @@
 package com.ping.voiceim.engine
 
-import android.content.Context
-
 /** Where to fetch each engine's model files from, and how to lay them out on disk. */
 object ModelDownloadSpec {
 
@@ -19,23 +17,11 @@ object ModelDownloadSpec {
         val files: List<RemoteFile> = emptyList(),
     )
 
-    /**
-     * NOTE: the 1.7B archive filename/date below is inferred from the same GitHub release
-     * naming convention as the verified 0.6B asset — it has not been confirmed against the
-     * actual release listing (no network access at authoring time). If downloading it fails,
-     * check https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models for the real filename
-     * and update this URL.
-     */
-    fun qwen3(context: Context): DownloadTarget {
-        val url = if (ModelConfig.qwen3ModelSize(context) == ModelConfig.QWEN3_SIZE_17B) {
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/" +
-                "sherpa-onnx-qwen3-asr-1.7B-int8-2026-03-25.tar.bz2"
-        } else {
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/" +
-                "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2"
-        }
-        return DownloadTarget(engine = ModelConfig.ENGINE_QWEN3, archiveUrl = url)
-    }
+    fun qwen3(): DownloadTarget = DownloadTarget(
+        engine = ModelConfig.ENGINE_QWEN3,
+        archiveUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/" +
+            "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2",
+    )
 
     fun xAsr(): DownloadTarget = DownloadTarget(
         engine = ModelConfig.ENGINE_X_ASR,
@@ -59,6 +45,6 @@ object ModelDownloadSpec {
         ),
     )
 
-    fun forEngine(context: Context, engine: String): DownloadTarget =
-        if (engine == ModelConfig.ENGINE_X_ASR) xAsr() else qwen3(context)
+    fun forEngine(engine: String): DownloadTarget =
+        if (engine == ModelConfig.ENGINE_X_ASR) xAsr() else qwen3()
 }

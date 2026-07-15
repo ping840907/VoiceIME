@@ -110,8 +110,6 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 辨識較準確，會依 UserDictionary 自動對齊使用者自訂的詞彙，並可在設定頁調整停頓偵測靈敏度（多久沒說話就自動停止錄音）。
 
-設定頁可選擇 **0.6B**（較小，下載/辨識較快，預設）或 **1.7B**（較大，可能更準確但下載/辨識較慢）兩種模型大小，分別安裝於 `qwen3_asr/` 與 `qwen3_asr_1.7b/`，互不覆蓋，可隨時切換無需重新下載已安裝的另一種。
-
 | Provider 優先順序 | 說明 |
 |-----------------|------|
 | `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
@@ -136,8 +134,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 ### Qwen3-ASR
 
 ```
-/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr/         # 0.6B
-/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr_1.7b/    # 1.7B
+/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr/
 ├── conv_frontend.onnx
 ├── encoder.int8.onnx
 ├── decoder.int8.onnx
@@ -152,16 +149,12 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 ```
 sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
-sherpa-onnx-qwen3-asr-1.7B-int8-2026-03-25.tar.bz2   # 實際檔名請以 release 頁面為準
 ```
 
-解壓後依大小重新命名資料夾為 `qwen3_asr`（0.6B）或 `qwen3_asr_1.7b`（1.7B），推送至裝置：
+解壓後重新命名資料夾為 `qwen3_asr`，推送至裝置：
 
 ```bash
 adb push qwen3_asr/ \
-  /sdcard/Android/data/com.ping.voiceim.debug/files/models/
-# 或
-adb push qwen3_asr_1.7b/ \
   /sdcard/Android/data/com.ping.voiceim.debug/files/models/
 ```
 
