@@ -113,6 +113,7 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnCancelSelection: TextView
     private lateinit var scrollSuggestions: ScrollView
     private lateinit var llSuggestions: ChipGroup
+    private lateinit var tvPreview: TextView
 
     // Repeat-move for selection expand buttons (long-press)
     private val repeatMoveHandler = Handler(Looper.getMainLooper())
@@ -148,6 +149,7 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
         scrollSuggestions    = view.findViewById(R.id.scroll_suggestions)
         llSuggestions        = view.findViewById(R.id.ll_suggestions)
+        tvPreview            = view.findViewById(R.id.tv_preview)
 
         btnMic.setOnClickListener { onMicClick() }
         btnBackspace.setOnClickListener { sendBackspace() }
@@ -373,6 +375,9 @@ class VoiceImeService : InputMethodService() {
         hideSuggestions()
         setState(State.RECORDING)
 
+        tvPreview.text = ""
+        tvPreview.visibility = View.VISIBLE
+
         composedLength  = 0
         var chunkCount  = 0
 
@@ -407,6 +412,12 @@ class VoiceImeService : InputMethodService() {
                             lastShown = combined
                             Handler(Looper.getMainLooper()).post { showLiveText(combined) }
                         }
+                        // Diagnostic preview, independent of the host field: shows the raw
+                        // decode state every chunk (even when blank) so it's visible whether
+                        // the engine is alive vs. genuinely producing nothing.
+                        Handler(Looper.getMainLooper()).post {
+                            tvPreview.text = "chunk=$chunkCount decode=$decodeCount \"$combined\""
+                        }
                         if (engine.isEndpoint(stream)) {
                             Log.d(TAG, "endpoint fired at chunk=$chunkCount partial='$partial'")
                             if (partial.isNotBlank()) accumulated += partial
@@ -431,7 +442,9 @@ class VoiceImeService : InputMethodService() {
             Log.d(TAG, "recording ended: totalChunks=$chunkCount accumulated='$accumulated' finalSegment='$finalSegment'")
             runCatching { stream.release() }
 
-            onTranscriptionDone((accumulated + finalSegment).trim())
+            val fullText = (accumulated + finalSegment).trim()
+            tvPreview.text = "final(totalChunks=$chunkCount): \"$fullText\""
+            onTranscriptionDone(fullText)
         }
     }
 
