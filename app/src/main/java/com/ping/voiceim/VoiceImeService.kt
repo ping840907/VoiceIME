@@ -373,16 +373,15 @@ class VoiceImeService : InputMethodService() {
         hideSuggestions()
         setState(State.RECORDING)
 
-        // engine.reset(stream) clears the recognizer's internal decode state (and thus
-        // getResult()) whenever a natural pause is detected — but recording itself keeps
-        // going until the user manually stops or the max duration is hit. Without tracking
-        // what was already transcribed before each reset, any pause mid-recording silently
-        // discards everything said before it. Accumulate finalized segments locally so both
-        // the live preview and the final commit include everything.
-        var accumulated = ""
-        var lastShown   = ""
         composedLength  = 0
         var chunkCount  = 0
+
+        // DIAGNOSTIC: buffer all chunks and feed/decode the whole recording only once at
+        // the end, mimicking Qwen3's offline flow, instead of feeding+decoding per chunk
+        // while recording. If this still returns empty, the incremental streaming
+        // decode/getResult loop is exonerated and the bug is in the model itself (files
+        // mismatch or a native decode failure that doesn't depend on chunking).
+        val allChunks = mutableListOf<FloatArray>()
 
         recordingJob = scope.launch {
             withContext(Dispatchers.IO) {
@@ -391,25 +390,9 @@ class VoiceImeService : InputMethodService() {
                         chunkCount++
                         var maxAbs = 0f
                         for (s in chunk) { val a = if (s < 0) -s else s; if (a > maxAbs) maxAbs = a }
-                        engine.acceptWaveform(stream, chunk)
-                        var decodeCount = 0
-                        while (engine.isReady(stream)) {
-                            engine.decode(stream)
-                            decodeCount++
-                        }
-                        val partial  = engine.getResult(stream)
-                        val combined = accumulated + partial
-                        if (chunkCount % 10 == 0 || decodeCount > 0) {
-                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
-                        }
-                        if (combined.isNotBlank() && combined != lastShown) {
-                            lastShown = combined
-                            Handler(Looper.getMainLooper()).post { showLiveText(combined) }
-                        }
-                        if (engine.isEndpoint(stream)) {
-                            Log.d(TAG, "endpoint fired at chunk=$chunkCount partial='$partial'")
-                            if (partial.isNotBlank()) accumulated += partial
-                            engine.reset(stream)
+                        allChunks.add(chunk)
+                        if (chunkCount % 10 == 0) {
+                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs (buffered, offline mode)")
                         }
                     },
                     onRmsUpdate = { rms -> updateRmsBar(rms) }
@@ -419,7 +402,9 @@ class VoiceImeService : InputMethodService() {
             isRecording = false
             activeStream = null
 
-            // Signal end of audio then drain all remaining frames
+            // Feed the entire recording at once, then drain — same pattern as Qwen3's
+            // one-shot decode, just via the streaming API's accept/decode calls.
+            for (chunk in allChunks) engine.acceptWaveform(stream, chunk)
             runCatching { engine.inputFinished(stream) }
             runCatching {
                 while (engine.isReady(stream)) {
@@ -427,10 +412,10 @@ class VoiceImeService : InputMethodService() {
                 }
             }
             val finalSegment = engine.getResult(stream).trim()
-            Log.d(TAG, "recording ended: totalChunks=$chunkCount accumulated='$accumulated' finalSegment='$finalSegment'")
+            Log.d(TAG, "recording ended (offline mode): totalChunks=$chunkCount finalSegment='$finalSegment'")
             runCatching { stream.release() }
 
-            onTranscriptionDone((accumulated + finalSegment).trim())
+            onTranscriptionDone(finalSegment)
         }
     }
 
