@@ -388,6 +388,8 @@ class VoiceImeService : InputMethodService() {
                 recorder.recordStreaming(
                     onChunk = { chunk ->
                         chunkCount++
+                        var maxAbs = 0f
+                        for (s in chunk) { val a = if (s < 0) -s else s; if (a > maxAbs) maxAbs = a }
                         engine.acceptWaveform(stream, chunk)
                         var decodeCount = 0
                         while (engine.isReady(stream)) {
@@ -397,7 +399,7 @@ class VoiceImeService : InputMethodService() {
                         val partial  = engine.getResult(stream)
                         val combined = accumulated + partial
                         if (chunkCount % 10 == 0 || decodeCount > 0) {
-                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
+                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
                         }
                         if (combined.isNotBlank() && combined != lastShown) {
                             lastShown = combined
