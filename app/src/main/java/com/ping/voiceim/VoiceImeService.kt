@@ -59,6 +59,10 @@ class VoiceImeService : InputMethodService() {
     // Active streaming session for X-ASR
     private var activeStream: OnlineStream? = null
 
+    // How many characters of the current not-yet-finalized X-ASR live preview are
+    // sitting in the host field (see showLiveText). 0 when nothing is pending.
+    private var composedLength = 0
+
     // Repeat-delete for backspace long-press
     private val repeatDeleteHandler = Handler(Looper.getMainLooper())
     private val repeatDeleteRunnable: Runnable = object : Runnable {
@@ -372,10 +376,11 @@ class VoiceImeService : InputMethodService() {
         // getResult()) whenever a natural pause is detected — but recording itself keeps
         // going until the user manually stops or the max duration is hit. Without tracking
         // what was already transcribed before each reset, any pause mid-recording silently
-        // discards everything said before it, and setComposingText only ever shows the
-        // current segment (it replaces, not appends). Accumulate finalized segments locally
-        // so both the live composing text and the final commit include everything.
+        // discards everything said before it. Accumulate finalized segments locally so both
+        // the live preview and the final commit include everything.
         var accumulated = ""
+        var lastShown   = ""
+        composedLength  = 0
 
         recordingJob = scope.launch {
             withContext(Dispatchers.IO) {
@@ -387,13 +392,9 @@ class VoiceImeService : InputMethodService() {
                         }
                         val partial  = engine.getResult(stream)
                         val combined = accumulated + partial
-                        if (combined.isNotBlank()) {
-                            // Live-revising "composing" text — the standard InputConnection
-                            // mechanism for exactly this (each call replaces the previous
-                            // composing span; a later commitText() finalizes it automatically).
-                            Handler(Looper.getMainLooper()).post {
-                                currentInputConnection?.setComposingText(combined, 1)
-                            }
+                        if (combined.isNotBlank() && combined != lastShown) {
+                            lastShown = combined
+                            Handler(Looper.getMainLooper()).post { showLiveText(combined) }
                         }
                         if (engine.isEndpoint(stream)) {
                             if (partial.isNotBlank()) accumulated += partial
@@ -421,25 +422,48 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
+    /**
+     * Shows live-revising text in the host field WITHOUT relying on composing-region
+     * support (setComposingText): some EditText implementations (custom views, certain
+     * cross-platform frameworks, etc.) don't render/update composing spans reliably, which
+     * made X-ASR's streaming preview silently show nothing in practice. Delete-then-commit
+     * only uses the two most basic, universally-supported InputConnection primitives.
+     * [composedLength] tracks how many characters of the previous preview are currently
+     * sitting in the field so they can be removed before the revised text is inserted.
+     */
+    private fun showLiveText(text: String) {
+        val ic = currentInputConnection ?: return
+        if (composedLength > 0) ic.deleteSurroundingText(composedLength, 0)
+        ic.commitText(text, 1)
+        composedLength = text.length
+    }
+
     private fun cancelRecording() {
         recorder.stopEarly()
         recordingJob?.cancel()
         activeStream?.let { runCatching { it.release() } }
         activeStream = null
-        if (isRecording) currentInputConnection?.finishComposingText()
+        if (composedLength > 0) {
+            currentInputConnection?.deleteSurroundingText(composedLength, 0)
+            composedLength = 0
+        }
         isRecording = false
         if (state == State.RECORDING) setState(State.IDLE)
     }
 
     private fun onTranscriptionDone(text: String) {
+        val ic = currentInputConnection
+        if (composedLength > 0) {
+            ic?.deleteSurroundingText(composedLength, 0)
+            composedLength = 0
+        }
         if (text.isBlank()) {
-            currentInputConnection?.commitText("", 1) // clears any stray X-ASR composing text
             setState(State.IDLE)
             showToast("未偵測到語音，請再試一次")
             return
         }
         val insertStart = minOf(selStart, selEnd)
-        currentInputConnection?.commitText(text, 1)
+        ic?.commitText(text, 1)
         setState(State.IDLE)
         showSuggestions(text, insertStart)
     }

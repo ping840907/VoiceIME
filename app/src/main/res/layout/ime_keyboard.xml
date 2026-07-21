@@ -106,10 +106,10 @@
         android:textColor="@color/ime_status_text"
         android:text="點擊麥克風開始語音輸入" />
 
-    <!-- ── Shared operation row — always visible in the same place, merging the
-         normal-mode text-editing keys (⌫ 空格 ↵) with the candidate-panel
-         navigation keys (⇧ ◀ ▶), so muscle memory doesn't have to relearn a
-         different layout depending on which panel is open.               -->
+    <!-- ── Shared operation area — always visible in the same place across both
+         modes, two rows of four:
+           Row 1: ⇧ ◀ ▶ ⌫
+           Row 2: ⚙️ 詞彙/關閉 空格 ↵                                       -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="52dp"
@@ -118,13 +118,13 @@
         android:paddingEnd="8dp">
 
         <TextView
-            android:id="@+id/btn_backspace"
+            android:id="@+id/btn_shift"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="⌫"
-            android:textSize="20sp"
+            android:text="⇧"
+            android:textSize="18sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
 
@@ -137,20 +137,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="◀"
-            android:textSize="16sp"
-            android:textColor="@color/ime_key_text"
-            android:background="@drawable/key_bg" />
-
-        <Space android:layout_width="4dp" android:layout_height="0dp" />
-
-        <TextView
-            android:id="@+id/btn_shift"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="⇧"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
 
@@ -163,9 +150,72 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="▶"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
+
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
+
+        <TextView
+            android:id="@+id/btn_backspace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="⌫"
+            android:textSize="22sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
+    </LinearLayout>
+
+    <Space android:layout_width="0dp" android:layout_height="6dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/key_bg"
+            android:contentDescription="設定"
+            android:scaleType="centerInside"
+            android:padding="12dp" />
+
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <TextView
+                android:id="@+id/btn_dict_insert"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="詞彙"
+                android:textSize="13sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
+
+            <TextView
+                android:id="@+id/btn_cancel_selection"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:visibility="gone"
+                android:text="關閉"
+                android:textSize="13sp"
+                android:textColor="@color/ime_key_text"
+                android:background="@drawable/key_bg" />
+        </FrameLayout>
 
         <Space android:layout_width="4dp" android:layout_height="0dp" />
 
@@ -176,7 +226,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="空格"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
 
@@ -189,56 +239,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="↵"
-            android:textSize="20sp"
-            android:textColor="@color/ime_key_text"
-            android:background="@drawable/key_bg" />
-    </LinearLayout>
-
-    <Space android:layout_width="0dp" android:layout_height="6dp" />
-
-    <!-- ── Bottom row — also always visible. 詞彙/取消選取 share one slot and
-         toggle depending on whether the candidate panel is open.         -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:gravity="center_vertical">
-
-        <ImageButton
-            android:id="@+id/btn_settings"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_settings"
-            android:background="@drawable/key_bg"
-            android:contentDescription="設定"
-            android:scaleType="centerInside"
-            android:padding="6dp" />
-
-        <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-        <TextView
-            android:id="@+id/btn_dict_insert"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="4"
-            android:gravity="center"
-            android:text="詞彙"
-            android:textSize="13sp"
-            android:textColor="@color/ime_key_text"
-            android:background="@drawable/key_bg" />
-
-        <TextView
-            android:id="@+id/btn_cancel_selection"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="4"
-            android:gravity="center"
-            android:visibility="gone"
-            android:text="關閉"
-            android:textSize="13sp"
+            android:textSize="22sp"
             android:textColor="@color/ime_key_text"
             android:background="@drawable/key_bg" />
     </LinearLayout>
