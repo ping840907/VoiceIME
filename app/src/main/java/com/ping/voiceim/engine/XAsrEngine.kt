@@ -40,6 +40,18 @@ class XAsrEngine(private val context: Context) {
                     return@withContext LoadResult(false, error = "File not found: $path")
             }
 
+            // A truncated/mismatched download can leave onnxruntime able to "load" a model
+            // that never produces real tokens, without ever throwing — dump file sizes and
+            // a tokens.txt line count so a bad download is visible without needing another
+            // recording test.
+            for (path in listOf(encoder, decoder, joiner, tokens)) {
+                Log.i(TAG, "model file: $path  size=${File(path).length()} bytes")
+            }
+            runCatching {
+                val lineCount = File(tokens).readLines().size
+                Log.i(TAG, "tokens.txt line count (vocab size) = $lineCount")
+            }
+
             release()
 
             // Try NNAPI first, falling back to CPU. Both providers reproduced the same
