@@ -42,9 +42,11 @@ class XAsrEngine(private val context: Context) {
 
             release()
 
-            // Try NNAPI first, falling back to CPU — confirmed working on real hardware.
+            // CPU-only: NNAPI silently produces degenerate (all-blank) output for this
+            // streaming transducer's recurrent decoder state on some drivers instead of
+            // throwing, so a fallback loop can't detect the failure — see ModelConfig.
             var lastError: Exception? = null
-            for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
+            for (provider in ModelConfig.X_ASR_PROVIDER_PRIORITY) {
                 try {
                     recognizer = OnlineRecognizer(
                         config = OnlineRecognizerConfig(

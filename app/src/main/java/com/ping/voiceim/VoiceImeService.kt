@@ -366,6 +366,7 @@ class VoiceImeService : InputMethodService() {
             return
         }
         activeStream = stream
+        Log.d(TAG, "X-ASR stream created, activeProvider=${engine.activeProvider}")
 
         isRecording = true
         closeCandidatePanel()
