@@ -16,15 +16,15 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
      ▼                                 ▼
  Qwen3AsrEngine                   XAsrEngine
  （OfflineRecognizer）             （OnlineRecognizer）
- 簡體中文                          繁體中文（逐 chunk 即時）
+ 簡體中文                          繁體中文（逐 chunk 即時 setComposingText）
      │ opencc4j                        │
      ▼                                 ▼
-              pendingText（預覽區）
+         commitText() 直接插入輸入框（無暫存/確認步驟）
                     │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-     長按/單點    詞彙鍵      確認插入
-   → 游標面板  → 游標面板  → commitText()
+       使用者以系統原生選字（長按拖曳）選取要修正的片段
+                    │
+                    ▼
+       詞彙鍵 → 候選面板（InputConnection 操作真實選取範圍）
 ```
 
 ---
@@ -37,7 +37,6 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 | `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援，含 UserDictionary 熱詞 |
 | `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer） |
 | `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止），支援離線與串流兩種模式 |
-| `SelectableTextView` | 自製長按 + 拖曳選取 TextView，不觸發系統焦點搶奪 |
 | `UserDictionary` | SharedPreferences JSON 詞彙庫 |
 | `DictSettingsActivity` | 詞彙管理頁面（新增 / 刪除） |
 | `ImeSettingsActivity` | 引擎切換與模型狀態頁面 |
@@ -49,37 +48,36 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 ```
 ┌────────────────────────────────────────┐
-│  辨識結果預覽區（長按 / 單點進入游標面板）  │
+│  （修正建議 Chip，辨識完成後視情況顯示）    │
 ├────────────────────────────────────────┤
 │  進度條 / 狀態文字                        │
 ├──────────┬────────────┬────────────────┤
-│  ⌫ / 取消 │    🎙️ MIC  │   ↵ / 確認插入 │
+│    ⌫     │    🎙️ MIC  │       ↵        │
 ├──────────┴────────────┴────────────────┤
 │  ⚙️      │    空格     │    詞彙         │
 └──────────┴────────────┴────────────────┘
 ```
 
+辨識結果會直接 `commitText()` 插入目前聚焦的輸入框，沒有暫存/預覽/確認插入這幾個步驟——第一次辨識結果就滿意的話，講完就結束了。
+
 ### 按鍵行為
 
-| 按鍵 | 無辨識文字 | 有辨識文字 |
-|------|-----------|-----------|
-| ⌫ | 刪除游標前一字 | 取消辨識結果 |
-| ⌫ 長按 | 連續刪除（50 ms/字） | — |
-| ↵ | 送出 Enter / IME action | 確認插入辨識結果 |
-| 🎙️ | 開始錄音 | 開始錄音（取代舊結果） |
-| 🎙️（錄音中） | 提前停止 | — |
-| ⚙️ | 開啟設定 Activity | — |
-| 詞彙 | 開啟游標面板（直接插入模式） | 開啟游標面板（插入至游標位置） |
-| 空格 | 插入空白字元 | — |
+| 按鍵 | 說明 |
+|------|-----------|
+| ⌫ | 刪除游標前一字（長按連續刪除，50 ms/字） |
+| ↵ | 送出 Enter / IME action |
+| 🎙️ | 開始錄音 |
+| 🎙️（錄音中） | 提前停止 |
+| ⚙️ | 開啟設定 Activity |
+| 詞彙 | 開啟候選面板（見下） |
+| 空格 | 插入空白字元 |
 
-### 游標面板
+### 候選面板（修正機制）
 
-長按預覽區、單點預覽區、或按「詞彙」鍵，都會進入同一個游標面板。
+修正辨識結果不再需要我們自製的選字手勢——直接用**系統原生的長按拖曳選字**選取輸入框裡想修正的片段即可。`VoiceImeService` 透過 `onUpdateSelection()` 觀察輸入框的選取狀態，偵測到非空選取時自動彈出候選面板（若詞典是空的則靜默不彈出，避免干擾單純複製貼上的操作）；也可以隨時按「詞彙」鍵手動開啟，此時作用對象是目前的選取範圍（有選取則替換）或游標位置（無選取則插入）。
 
 ```
 ┌────────────────────────────────────────┐
-│  辨識結果（含游標 |）                    │
-├──────────────────────────────────────  │
 │  插入位置 / 選取範圍提示                  │
 ├────────────────────────────────────────┤
 │  [詞彙 Chip 列表]                       │
@@ -89,16 +87,20 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 ```
 
 **游標模式**（Shift OFF）
-- ◀ / ▶：移動插入游標
+- ◀ / ▶：透過 `InputConnection.setSelection()` 移動真實游標
 - 點擊詞彙 Chip：在游標位置插入
 - 按 ⇧：進入選取模式，錨點固定在目前游標位置
 
 **選取模式**（Shift ON）
 - ◀ / ▶：從錨點延伸 / 收縮選取範圍
-- 點擊詞彙 Chip：替換選取範圍
+- 點擊詞彙 Chip：透過 `commitText()` 替換選取範圍
 - 按 ⇧ 或「取消選取」：游標回到錨點，回到游標模式
 
-長按拖曳進入面板時，Shift 預設為 ON（拖曳起點為錨點）。
+原生長按拖曳選字進入面板時，Shift 預設為 ON（選取起點為錨點）。
+
+### 修正建議 Chip
+
+辨識完成並插入後，會即時比對剛插入的文字與使用者詞典（編輯距離 1 以內的近似片段），若有命中則在上方顯示「錯字→正確」的建議 Chip，點擊即修正；沒有相關建議或內容已變更則不顯示。
 
 ---
 
@@ -121,7 +123,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 即時串流辨識，邊說邊顯示結果，速度較快，但不會自動加入標點符號，也不支援自訂詞彙熱詞。
 
-基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
+基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分結果透過 `setComposingText()` 即時顯示於輸入框（標準輸入法組字機制，下劃線樣式），最終結果以 `commitText()` 定案。原生輸出繁體中文，不需 opencc4j 後處理。
 
 ---
 
@@ -222,7 +224,6 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 app/src/main/java/com/ping/voiceim/
 ├── VoiceImeService.kt          # InputMethodService 主體
-├── SelectableTextView.kt       # 自製長按選取 TextView
 ├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝 + 模糊修正比對
 ├── DictUsage.kt                # 詞彙使用次數統計
 ├── DictSettingsActivity.kt     # 詞彙管理頁面

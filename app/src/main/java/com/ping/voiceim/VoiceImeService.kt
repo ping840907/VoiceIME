@@ -8,10 +8,6 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.BackgroundColorSpan
-import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
@@ -40,6 +36,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Recognized text is committed straight into the focused field as soon as it's ready.
+ * Corrections happen in-place: the user selects text with the host field's own native
+ * selection gesture (long-press + drag), which this service observes via
+ * [onUpdateSelection], and the 詞彙 candidate panel edits that live selection through
+ * [android.view.inputmethod.InputConnection] — there's no separate "confirm insert" step.
+ */
 class VoiceImeService : InputMethodService() {
 
     // IME runs under the bare system theme; wrap it so AppCompat/Material widgets inflate correctly.
@@ -52,7 +55,6 @@ class VoiceImeService : InputMethodService() {
 
     private var recordingJob: Job? = null
     private var isRecording = false
-    private var pendingText = ""
 
     // Active streaming session for X-ASR
     private var activeStream: OnlineStream? = null
@@ -74,21 +76,21 @@ class VoiceImeService : InputMethodService() {
         private const val REPEAT_MOVE_INTERVAL_MS   = 80L
     }
 
-    // Selection state
+    // Last-known selection in the host field, kept in sync via onUpdateSelection.
     private var selStart = 0
-    private var selEnd    = 0
+    private var selEnd   = 0
 
-    // Cursor insertion mode: candidate panel is open, cursor is positioned
+    // Candidate panel state
     private var isCursorMode = false
     private var cursorPos    = 0
+    private var isShiftOn    = false
+    private var shiftAnchor  = 0
 
-    // Shift mode: anchor is fixed, cursorPos is the moving focus for selection
-    // shiftAnchor = position where Shift was enabled (or where long-press drag started)
-    private var isShiftOn   = false
-    private var shiftAnchor = 0
+    // Fuzzy correction suggestions reference the text/position of the last commit.
+    private var lastCommittedText  = ""
+    private var lastCommittedStart = 0
 
     // Views
-    private lateinit var tvTranscription: SelectableTextView
     private lateinit var tvStatus: TextView
     private lateinit var btnMic: ImageButton
     private lateinit var btnBackspace: TextView
@@ -124,7 +126,6 @@ class VoiceImeService : InputMethodService() {
     override fun onCreateInputView(): View {
         val view = LayoutInflater.from(themedCtx).inflate(R.layout.ime_keyboard, null)
 
-        tvTranscription      = view.findViewById(R.id.tv_transcription)
         tvStatus             = view.findViewById(R.id.tv_status)
         btnMic               = view.findViewById(R.id.btn_mic)
         btnBackspace         = view.findViewById(R.id.btn_backspace)
@@ -145,13 +146,11 @@ class VoiceImeService : InputMethodService() {
         llSuggestions        = view.findViewById(R.id.ll_suggestions)
 
         btnMic.setOnClickListener { onMicClick() }
-        btnBackspace.setOnClickListener { onBackspaceClick() }
+        btnBackspace.setOnClickListener { sendBackspace() }
         btnBackspace.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (pendingText.isEmpty()) {
-                        repeatDeleteHandler.postDelayed(repeatDeleteRunnable, REPEAT_DELETE_DELAY_MS)
-                    }
+                    repeatDeleteHandler.postDelayed(repeatDeleteRunnable, REPEAT_DELETE_DELAY_MS)
                     false // let onClick fire normally
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -161,52 +160,26 @@ class VoiceImeService : InputMethodService() {
                 else -> false
             }
         }
-        btnEnter.setOnClickListener { onEnterClick() }
+        btnEnter.setOnClickListener { sendEnter() }
         btnSpace.setOnClickListener { commitText(" ") }
-        btnDictInsert.setOnClickListener { showDictPanel() }
+        btnDictInsert.setOnClickListener { showCandidatePanel() }
         btnSettings.setOnClickListener { openMainSettings() }
         btnShift.setOnClickListener { toggleShift() }
         btnCancelSelection.setOnClickListener {
             if (isShiftOn) {
                 // Cancel selection: cursor returns to the anchor position
-                cursorPos    = shiftAnchor
-                isCursorMode = true
+                cursorPos = shiftAnchor
                 setShift(false)
-                updateCursorHighlight()
+                currentInputConnection?.setSelection(cursorPos, cursorPos)
+                updatePanelLabel()
             } else {
-                collapseSelection()
+                closeCandidatePanel()
             }
         }
         btnSelExpandLeft.setOnClickListener  { adjustSelection(delta = -1) }
         btnSelExpandRight.setOnClickListener { adjustSelection(delta = +1) }
         attachRepeatMove(btnSelExpandLeft,  delta = -1)
         attachRepeatMove(btnSelExpandRight, delta = +1)
-
-        tvTranscription.onSingleTap = { offset ->
-            if (pendingText.isNotEmpty()) {
-                cursorPos = offset.coerceIn(0, pendingText.length)
-                showCursorPanel()
-            }
-        }
-
-        tvTranscription.onSelectionChanged = { start, end ->
-            selStart = start
-            selEnd   = end
-            if (start < end && pendingText.isNotEmpty()) {
-                if (layoutCandidates.visibility == View.VISIBLE) {
-                    // New drag while panel is open — update shift selection
-                    shiftAnchor  = start
-                    cursorPos    = end
-                    isCursorMode = true
-                    setShift(true)
-                    updateShiftHighlight()
-                } else {
-                    showCandidatePanel()
-                }
-            } else if (layoutCandidates.visibility != View.VISIBLE) {
-                collapseSelection()
-            }
-        }
 
         updateUi()
         preloadModel()
@@ -215,12 +188,36 @@ class VoiceImeService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        clearPending()
+        closeCandidatePanel()
+        hideSuggestions()
     }
 
     override fun onFinishInput() {
         super.onFinishInput()
         cancelRecording()
+        closeCandidatePanel()
+        hideSuggestions()
+    }
+
+    override fun onUpdateSelection(
+        oldSelStart: Int, oldSelEnd: Int,
+        newSelStart: Int, newSelEnd: Int,
+        candidatesStart: Int, candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        selStart = newSelStart
+        selEnd   = newSelEnd
+        if (isCursorMode && !isShiftOn) cursorPos = newSelEnd
+
+        if (!::layoutCandidates.isInitialized) return
+        if (layoutCandidates.visibility == View.VISIBLE) {
+            updatePanelLabel()
+        } else if (!isRecording && state == State.IDLE && newSelStart < newSelEnd) {
+            // User selected text natively (long-press + drag in the host field) — offer
+            // the dictionary candidates for it. Silent no-op if the dictionary is empty,
+            // since this can fire for an unrelated copy/paste selection.
+            showCandidatePanel(showEmptyDictMessage = false)
+        }
     }
 
     override fun onDestroy() {
@@ -259,7 +256,7 @@ class VoiceImeService : InputMethodService() {
                 }
             }
         } else {
-            if (qwen3Asr.value.isLoaded()) return
+            if (qwen3Asr.value.isLoaded() && !qwen3NeedsReload()) return
             setState(State.LOADING)
             scope.launch {
                 val result = qwen3Asr.value.load(buildHotwords())
@@ -271,6 +268,10 @@ class VoiceImeService : InputMethodService() {
             }
         }
     }
+
+    /** True if the loaded Qwen3 recognizer no longer matches the current hotwords selection. */
+    private fun qwen3NeedsReload(): Boolean =
+        buildHotwords() != qwen3Asr.value.loadedHotwords
 
     /** Hardware provider label for whichever engine is currently selected, or "" if not loaded. */
     private fun currentAcceleratorLabel(): String {
@@ -309,25 +310,12 @@ class VoiceImeService : InputMethodService() {
             if (!xAsr.value.isLoaded()) { preloadModel(); return }
             startStreamingRecording()
         } else {
-            val hotwords = buildHotwords()
-            if (!qwen3Asr.value.isLoaded()) {
+            // (Re)load if not loaded yet, or if hotwords no longer match — a no-op check
+            // inside load() itself makes this cheap when nothing changed.
+            if (!qwen3Asr.value.isLoaded() || qwen3NeedsReload()) {
                 setState(State.LOADING)
                 scope.launch {
-                    val result = qwen3Asr.value.load(hotwords)
-                    if (result.success) {
-                        startOfflineRecording()
-                    } else {
-                        setState(State.IDLE)
-                        showToast("模型載入失敗: ${result.error}")
-                    }
-                }
-                return
-            }
-            // Reload if hotwords changed (fast no-op when unchanged)
-            if (hotwords != qwen3Asr.value.loadedHotwords) {
-                setState(State.LOADING)
-                scope.launch {
-                    val result = qwen3Asr.value.load(hotwords)
+                    val result = qwen3Asr.value.load(buildHotwords())
                     if (result.success) {
                         startOfflineRecording()
                     } else {
@@ -343,7 +331,8 @@ class VoiceImeService : InputMethodService() {
 
     private fun startOfflineRecording() {
         isRecording = true
-        collapseSelection()
+        closeCandidatePanel()
+        hideSuggestions()
         setState(State.RECORDING)
 
         recordingJob = scope.launch {
@@ -375,7 +364,8 @@ class VoiceImeService : InputMethodService() {
         activeStream = stream
 
         isRecording = true
-        collapseSelection()
+        closeCandidatePanel()
+        hideSuggestions()
         setState(State.RECORDING)
 
         recordingJob = scope.launch {
@@ -388,10 +378,11 @@ class VoiceImeService : InputMethodService() {
                         }
                         val partial = engine.getResult(stream)
                         if (partial.isNotBlank()) {
+                            // Live-revising "composing" text — the standard InputConnection
+                            // mechanism for exactly this (each call replaces the previous
+                            // composing span; a later commitText() finalizes it automatically).
                             Handler(Looper.getMainLooper()).post {
-                                pendingText = partial
-                                tvTranscription.displayCursorAt = -1
-                                tvTranscription.text = partial
+                                currentInputConnection?.setComposingText(partial, 1)
                             }
                         }
                         if (engine.isEndpoint(stream)) {
@@ -424,40 +415,49 @@ class VoiceImeService : InputMethodService() {
         recordingJob?.cancel()
         activeStream?.let { runCatching { it.release() } }
         activeStream = null
+        if (isRecording) currentInputConnection?.finishComposingText()
         isRecording = false
         if (state == State.RECORDING) setState(State.IDLE)
     }
 
     private fun onTranscriptionDone(text: String) {
         if (text.isBlank()) {
+            currentInputConnection?.commitText("", 1) // clears any stray X-ASR composing text
             setState(State.IDLE)
             showToast("未偵測到語音，請再試一次")
             return
         }
-        pendingText = text
-        tvTranscription.displayCursorAt = -1
-        tvTranscription.text = text
+        val insertStart = minOf(selStart, selEnd)
+        currentInputConnection?.commitText(text, 1)
         setState(State.IDLE)
-        updateSuggestions()
+        showSuggestions(text, insertStart)
     }
 
     // ── Selection / candidate panel ───────────────────────────────────────────
 
-    private fun showCandidatePanel() {
-        if (selStart >= selEnd || pendingText.isEmpty()) return
-        val s = selStart.coerceIn(0, pendingText.length)
-        val e = selEnd.coerceIn(0, pendingText.length)
-        if (s >= e) return
-
-        // Long-press drag → anchor at left end, cursor at right end, Shift ON
-        shiftAnchor  = s
-        cursorPos    = e
-        isCursorMode = true
-        setShift(true)
-
-        tvTranscription.cancelDrag()
-        updateShiftHighlight()
+    /**
+     * Opens the candidate panel against whatever is currently selected in the host field
+     * (replace mode) or, if there's no selection, at the current cursor (insert mode).
+     * [showEmptyDictMessage] is suppressed for the passive auto-trigger from
+     * [onUpdateSelection] so an unrelated copy/paste selection doesn't nag the user.
+     */
+    private fun showCandidatePanel(showEmptyDictMessage: Boolean = true) {
+        if (UserDictionary.load(this).isEmpty()) {
+            if (showEmptyDictMessage) tvStatus.text = "詞彙庫為空，請先至設定新增詞彙"
+            return
+        }
+        if (selStart < selEnd) {
+            shiftAnchor  = selStart
+            cursorPos    = selEnd
+            isCursorMode = true
+            setShift(true)
+        } else {
+            cursorPos    = selEnd
+            isCursorMode = true
+            setShift(false)
+        }
         populateCandidateChips()
+        updatePanelLabel()
         btnShift.visibility         = View.VISIBLE
         btnSelExpandLeft.visibility  = View.VISIBLE
         btnSelExpandRight.visibility = View.VISIBLE
@@ -466,19 +466,12 @@ class VoiceImeService : InputMethodService() {
         scrollSuggestions.visibility    = View.GONE
     }
 
-    private fun showCursorPanel() {
-        isCursorMode = true
+    private fun closeCandidatePanel() {
+        isCursorMode = false
         setShift(false)
-        cursorPos = cursorPos.coerceIn(0, pendingText.length)
-        tvTranscription.cancelDrag()
-        updateCursorHighlight()
-        populateCandidateChips()
-        btnShift.visibility         = View.VISIBLE
-        btnSelExpandLeft.visibility  = View.VISIBLE
-        btnSelExpandRight.visibility = View.VISIBLE
-        layoutNormalControls.visibility = View.GONE
-        layoutCandidates.visibility     = View.VISIBLE
-        scrollSuggestions.visibility    = View.GONE
+        if (!::layoutCandidates.isInitialized) return
+        layoutCandidates.visibility     = View.GONE
+        layoutNormalControls.visibility = View.VISIBLE
     }
 
     private fun populateCandidateChips() {
@@ -519,8 +512,14 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun adjustSelection(delta: Int) {
-        cursorPos = (cursorPos + delta).coerceIn(0, pendingText.length)
-        if (isShiftOn) updateShiftHighlight() else updateCursorHighlight()
+        cursorPos = (cursorPos + delta).coerceAtLeast(0)
+        val ic = currentInputConnection
+        if (isShiftOn) {
+            ic?.setSelection(minOf(shiftAnchor, cursorPos), maxOf(shiftAnchor, cursorPos))
+        } else {
+            ic?.setSelection(cursorPos, cursorPos)
+        }
+        updatePanelLabel()
     }
 
     private fun toggleShift() {
@@ -528,14 +527,13 @@ class VoiceImeService : InputMethodService() {
             // Turn ON: anchor stays at current cursor, ◀/▶ will extend selection
             shiftAnchor = cursorPos
             setShift(true)
-            updateShiftHighlight()
         } else {
             // Turn OFF: cursor returns to anchor, back to pure cursor mode
-            cursorPos    = shiftAnchor
-            isCursorMode = true
+            cursorPos = shiftAnchor
             setShift(false)
-            updateCursorHighlight()
+            currentInputConnection?.setSelection(cursorPos, cursorPos)
         }
+        updatePanelLabel()
     }
 
     private fun setShift(on: Boolean) {
@@ -549,131 +547,38 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
-    private fun updateShiftHighlight() {
-        val cp = cursorPos.coerceIn(0, pendingText.length)
-        val an = shiftAnchor.coerceIn(0, pendingText.length)
-        val s  = minOf(an, cp)
-        val e  = maxOf(an, cp)
-
-        // Always insert | at cursor position (same technique as cursor mode)
-        val withCursor = pendingText.substring(0, cp) + "|" + pendingText.substring(cp)
-        val spannable  = SpannableString(withCursor)
-
-        // | accent colour
-        spannable.setSpan(
-            ForegroundColorSpan(ContextCompat.getColor(this, R.color.ime_accent)),
-            cp, cp + 1,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-
-        // Selection background — index-adjusted for the inserted |
-        if (s < e) {
-            val adjS: Int; val adjE: Int
-            if (cp <= an) {
-                // cursor at left or same as anchor: |[selection]
-                // pendingText[cp..an-1] → new string[(cp+1)..(an)]
-                adjS = cp + 1
-                adjE = an + 1
-            } else {
-                // cursor at right of anchor: [selection]|
-                // pendingText[an..cp-1] → new string[an..cp-1] (all before the |)
-                adjS = an
-                adjE = cp
-            }
-            if (adjS < adjE) {
-                spannable.setSpan(
-                    BackgroundColorSpan(0x4429B6F6),
-                    adjS, adjE,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
+    /** Reads the host field's current selection/cursor context via InputConnection to label the panel. */
+    private fun updatePanelLabel() {
+        if (!::tvSelectedRange.isInitialized) return
+        val ic = currentInputConnection ?: return
+        if (isShiftOn && shiftAnchor != cursorPos) {
+            val selected = ic.getSelectedText(0)?.toString().orEmpty()
+            tvSelectedRange.text = if (selected.isEmpty()) "⇧ 移動方向鍵開始選取"
+                                   else "選取範圍：「$selected」"
+        } else {
+            val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+            val after  = ic.getTextAfterCursor(1, 0)?.toString().orEmpty()
+            tvSelectedRange.text = "插入位置：「${before}│${after}」"
         }
-
-        tvTranscription.displayCursorAt = cp
-        tvTranscription.text = spannable
-        val selected = if (s < e) pendingText.substring(s, e) else ""
-        tvSelectedRange.text = if (selected.isEmpty()) "⇧ 移動方向鍵開始選取"
-                               else "選取範圍：「$selected」"
-    }
-
-    private fun updateCursorHighlight() {
-        val pos = cursorPos.coerceIn(0, pendingText.length)
-        val withCursor = pendingText.substring(0, pos) + "|" + pendingText.substring(pos)
-        val spannable  = SpannableString(withCursor)
-        spannable.setSpan(
-            ForegroundColorSpan(ContextCompat.getColor(this, R.color.ime_accent)),
-            pos, pos + 1,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        tvTranscription.displayCursorAt = pos
-        tvTranscription.text = spannable
-
-        val before = if (pos > 0) pendingText[pos - 1].toString() else ""
-        val after  = if (pos < pendingText.length) pendingText[pos].toString() else ""
-        tvSelectedRange.text = "插入位置：「${before}│${after}」"
     }
 
     private fun applyCandidate(from: String, replacement: String) {
         DictUsage.recordUse(this, from)
-        if (pendingText.isEmpty()) {
-            // No pending text (dict key with empty transcription): commit directly
-            commitText(replacement)
-            collapseSelection()
-            return
-        }
-        if (isShiftOn && shiftAnchor != cursorPos) {
-            // Replace shift-selected range
-            val s = minOf(shiftAnchor, cursorPos).coerceIn(0, pendingText.length)
-            val e = maxOf(shiftAnchor, cursorPos).coerceIn(0, pendingText.length)
-            val original = pendingText.substring(s, e)
-            pendingText  = pendingText.substring(0, s) + replacement + pendingText.substring(e)
-            cursorPos    = s + replacement.length
-            shiftAnchor  = cursorPos
-            isCursorMode = true
-            setShift(false)
-            updateCursorHighlight()
-            populateCandidateChips()
-            updateSuggestions()
-            tvStatus.text = "已替換「$original」→「$replacement」"
-        } else {
-            // Cursor mode: insert at cursor position
-            val pos = cursorPos.coerceIn(0, pendingText.length)
-            pendingText  = pendingText.substring(0, pos) + replacement + pendingText.substring(pos)
-            cursorPos    = pos + replacement.length
-            isCursorMode = true
-            setShift(false)
-            updateCursorHighlight()
-            populateCandidateChips()
-            updateSuggestions()
-            tvStatus.text = "已插入「$replacement」"
-        }
-    }
-
-    private fun collapseSelection() {
-        isCursorMode = false
+        val insertPos = minOf(selStart, selEnd)
+        currentInputConnection?.commitText(replacement, 1)
+        cursorPos = insertPos + replacement.length
         setShift(false)
-        selStart = 0; selEnd = 0
-        if (!::layoutCandidates.isInitialized) return
-        btnShift.visibility         = View.VISIBLE
-        btnSelExpandLeft.visibility  = View.VISIBLE
-        btnSelExpandRight.visibility = View.VISIBLE
-        layoutCandidates.visibility     = View.GONE
-        layoutNormalControls.visibility = View.VISIBLE
-        if (::tvTranscription.isInitialized) {
-            tvTranscription.displayCursorAt = -1
-            tvTranscription.text = pendingText
-        }
-        updateSuggestions()
+        populateCandidateChips()
+        updatePanelLabel()
+        tvStatus.text = "已套用「$replacement」"
     }
 
-    /** Show near-miss ASR correction suggestions as tappable chips below the preview. */
-    private fun updateSuggestions() {
+    /** Near-miss ASR correction suggestions for the text just committed by [onTranscriptionDone]. */
+    private fun showSuggestions(text: String, start: Int) {
+        lastCommittedText  = text
+        lastCommittedStart = start
         if (!::scrollSuggestions.isInitialized) return
-        if (pendingText.isEmpty() || isRecording || layoutCandidates.visibility == View.VISIBLE) {
-            scrollSuggestions.visibility = View.GONE
-            return
-        }
-        val suggestions = UserDictionary.findFuzzySuggestions(pendingText, UserDictionary.load(this)).take(5)
+        val suggestions = UserDictionary.findFuzzySuggestions(text, UserDictionary.load(this)).take(5)
         if (suggestions.isEmpty()) {
             scrollSuggestions.visibility = View.GONE
             return
@@ -689,14 +594,28 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun applySuggestion(s: UserDictionary.Suggestion) {
-        val idx = pendingText.indexOf(s.matchedText)
-        if (idx < 0) { updateSuggestions(); return }
-        pendingText = pendingText.substring(0, idx) + s.replacement + pendingText.substring(idx + s.matchedText.length)
-        tvTranscription.displayCursorAt = -1
-        tvTranscription.text = pendingText
+        val idx = lastCommittedText.indexOf(s.matchedText)
+        val ic  = currentInputConnection
+        if (idx < 0 || ic == null) { hideSuggestions(); return }
+
+        val absStart = lastCommittedStart + idx
+        val absEnd   = absStart + s.matchedText.length
+        ic.setSelection(absStart, absEnd)
+        // Guard against staleness: only apply if the field still actually contains what we expect there
+        // (the user may have edited elsewhere since this suggestion was computed).
+        if (ic.getSelectedText(0)?.toString() != s.matchedText) {
+            showToast("內容已變更，請改用長按選取後套用詞彙")
+            hideSuggestions()
+            return
+        }
+        ic.commitText(s.replacement, 1)
         DictUsage.recordUse(this, s.from)
         tvStatus.text = "已修正「${s.matchedText}」→「${s.replacement}」"
-        updateSuggestions()
+        hideSuggestions()
+    }
+
+    private fun hideSuggestions() {
+        if (::scrollSuggestions.isInitialized) scrollSuggestions.visibility = View.GONE
     }
 
     private fun makeChip(label: String, enabled: Boolean = true): Chip {
@@ -736,28 +655,9 @@ class VoiceImeService : InputMethodService() {
 
     // ── Text actions ──────────────────────────────────────────────────────────
 
-    private fun commitPending() {
-        if (pendingText.isNotEmpty()) {
-            commitText(pendingText)
-            clearPending()
-        }
-    }
-
-    private fun clearPending() {
-        pendingText = ""
-        collapseSelection()
-        if (::tvTranscription.isInitialized) {
-            tvTranscription.displayCursorAt = -1
-            tvTranscription.text = ""
-        }
-        if (::btnMic.isInitialized) updateUi()
-    }
-
     private fun commitText(text: String) { currentInputConnection?.commitText(text, 1) }
 
     private fun sendBackspace() { currentInputConnection?.deleteSurroundingText(1, 0) }
-
-
 
     private fun sendEnter() {
         val ei     = currentInputEditorInfo
@@ -769,29 +669,9 @@ class VoiceImeService : InputMethodService() {
         }
     }
 
-    private fun showDictPanel() {
-        if (UserDictionary.load(this).isEmpty()) {
-            tvStatus.text = "詞彙庫為空，請先至設定新增詞彙"
-            return
-        }
-        // Position cursor at end of any pending text, then open the shared cursor panel
-        cursorPos = pendingText.length
-        showCursorPanel()
-    }
-
     private fun openMainSettings() {
         startActivity(Intent(this, ImeSettingsActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    // ── Text actions (dynamic backspace / enter) ──────────────────────────────
-
-    private fun onBackspaceClick() {
-        if (pendingText.isNotEmpty()) clearPending() else sendBackspace()
-    }
-
-    private fun onEnterClick() {
-        if (pendingText.isNotEmpty()) commitPending() else sendEnter()
     }
 
     // ── UI helpers ────────────────────────────────────────────────────────────
@@ -800,24 +680,10 @@ class VoiceImeService : InputMethodService() {
 
     private fun updateUi() {
         if (!::btnMic.isInitialized) return
-        val hasPending = pendingText.isNotEmpty()
-        // Dynamic labels for backspace / enter
-        btnBackspace.text = if (hasPending) "取消" else "⌫"
-        btnBackspace.textSize = if (hasPending) 14f else 26f
-        btnEnter.text     = if (hasPending) "確認插入" else "↵"
-        btnEnter.textSize = if (hasPending) 13f else 26f
-        btnEnter.setBackgroundResource(if (hasPending) R.drawable.commit_bg else R.drawable.key_bg)
-        btnEnter.setTextColor(
-            ContextCompat.getColor(this, if (hasPending) R.color.ime_accent_text else R.color.ime_key_text)
-        )
-
         when (state) {
             State.IDLE -> {
-                tvStatus.text = when {
-                    hasPending -> ""
-                    else -> currentAcceleratorLabel().let {
-                        if (it.isNotEmpty()) "點擊麥克風開始語音輸入（$it）" else "點擊麥克風開始語音輸入"
-                    }
+                tvStatus.text = currentAcceleratorLabel().let {
+                    if (it.isNotEmpty()) "點擊麥克風開始語音輸入（$it）" else "點擊麥克風開始語音輸入"
                 }
                 btnMic.setImageResource(R.drawable.ic_mic)
                 btnMic.alpha = 1f
