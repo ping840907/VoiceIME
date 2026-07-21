@@ -33,12 +33,6 @@ object ModelConfig {
     const val ASR_SAMPLE_RATE = 16_000
     val ASR_PROVIDER_PRIORITY = listOf("nnapi", "cpu")
 
-    // Streaming transducers rely on recurrent/stateful decoder ops and a dynamic-shape
-    // joiner; many NNAPI drivers accept these graphs without error but silently produce
-    // degenerate (all-blank) output instead of failing load(), unlike Qwen3's offline,
-    // non-recurrent architecture. CPU-only avoids that failure mode for X-ASR.
-    val X_ASR_PROVIDER_PRIORITY = listOf("cpu")
-
     // Recording / VAD
     const val MAX_RECORD_SECONDS    = 15f
     const val MIN_RECORD_SECONDS    = 0.4f

@@ -114,7 +114,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 | `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
 | `cpu` | 純軟體備援，所有裝置可用 |
 
-錄音完成後一次性呼叫 `OfflineRecognizer.decode()`（Qwen3 為離線、非遞迴架構，NNAPI 相容性良好），結果透過 opencc4j 轉為繁體中文。UserDictionary 詞彙在載入引擎時作為熱詞（`OfflineQwen3AsrModelConfig.hotwords`）注入，詞彙更新時自動重新載入。
+錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。UserDictionary 詞彙在載入引擎時作為熱詞（`OfflineQwen3AsrModelConfig.hotwords`）注入，詞彙更新時自動重新載入。
 
 ### X-ASR（快速，不自動加標點）
 
@@ -122,7 +122,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分結果即時顯示於輸入框。原生輸出繁體中文，不需 opencc4j 後處理。
 
-**僅使用 CPU provider**（不像 Qwen3 會嘗試 NNAPI）：streaming transducer 依賴遞迴的解碼器狀態與動態形狀的 joiner，部分裝置的 NNAPI driver 會接受這類計算圖但實際推論時默默輸出全空白結果，而非直接拋出例外讓備援機制偵測到——實測曾出現「麥克風確實錄到有效音量的語音、`decode()` 持續正常執行，但 `getResult()` 從頭到尾都是空字串」的情況，且語音停頓偵測穩定地在固定的靜音逾時後觸發，顯示辨識器從未偵測到任何語音內容。改為僅用 CPU provider 後解決。
+Provider 優先順序與 Qwen3 相同（`nnapi` → `cpu`）。曾懷疑是 NNAPI 對 streaming transducer 的遞迴解碼器狀態支援不佳導致默默輸出空白結果，但實測發現改為純 CPU provider 後症狀完全相同（`decode()` 正常執行、麥克風確實錄到有效音量，但 `getResult()` 從頭到尾都是空字串），排除了 provider 本身的嫌疑，問題仍待查（可能是模型檔案版本不匹配或原生解碼層的靜默失敗）。
 
 即時預覽**不使用**輸入法的組字（composing region）機制——實測發現不少輸入框（自訂 View、部分跨平台框架等）對組字區域的渲染/更新支援不完整，導致畫面完全沒有反應。改用 `deleteSurroundingText()` + `commitText()` 這兩個最基礎、幾乎所有輸入框都正確支援的操作：每次有新的部分結果，先刪除上一次顯示的暫定文字，再提交新的文字，模擬「即時修訂」的效果；最終結果送出時比照辦理，確保暫定文字被正確替換而非重複疊加。
 

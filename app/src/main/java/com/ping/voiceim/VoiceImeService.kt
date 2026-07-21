@@ -376,12 +376,14 @@ class VoiceImeService : InputMethodService() {
         composedLength  = 0
         var chunkCount  = 0
 
-        // DIAGNOSTIC: buffer all chunks and feed/decode the whole recording only once at
-        // the end, mimicking Qwen3's offline flow, instead of feeding+decoding per chunk
-        // while recording. If this still returns empty, the incremental streaming
-        // decode/getResult loop is exonerated and the bug is in the model itself (files
-        // mismatch or a native decode failure that doesn't depend on chunking).
-        val allChunks = mutableListOf<FloatArray>()
+        // Staging buffer: each chunk's decode result is pushed straight into the host
+        // field the instant it's available (via showLiveText's delete+commit), the same
+        // way the old preview bar showed text as soon as the engine produced it — just
+        // writing to the real input field instead of a dedicated TextView. accumulated
+        // holds everything finalized before the current in-progress (post-reset) segment,
+        // since reset() clears the recognizer's decode state on every endpoint.
+        var accumulated = ""
+        var lastShown   = ""
 
         recordingJob = scope.launch {
             withContext(Dispatchers.IO) {
@@ -390,9 +392,25 @@ class VoiceImeService : InputMethodService() {
                         chunkCount++
                         var maxAbs = 0f
                         for (s in chunk) { val a = if (s < 0) -s else s; if (a > maxAbs) maxAbs = a }
-                        allChunks.add(chunk)
-                        if (chunkCount % 10 == 0) {
-                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs (buffered, offline mode)")
+                        engine.acceptWaveform(stream, chunk)
+                        var decodeCount = 0
+                        while (engine.isReady(stream)) {
+                            engine.decode(stream)
+                            decodeCount++
+                        }
+                        val partial  = engine.getResult(stream)
+                        val combined = accumulated + partial
+                        if (chunkCount % 10 == 0 || decodeCount > 0) {
+                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
+                        }
+                        if (combined.isNotBlank() && combined != lastShown) {
+                            lastShown = combined
+                            Handler(Looper.getMainLooper()).post { showLiveText(combined) }
+                        }
+                        if (engine.isEndpoint(stream)) {
+                            Log.d(TAG, "endpoint fired at chunk=$chunkCount partial='$partial'")
+                            if (partial.isNotBlank()) accumulated += partial
+                            engine.reset(stream)
                         }
                     },
                     onRmsUpdate = { rms -> updateRmsBar(rms) }
@@ -402,9 +420,7 @@ class VoiceImeService : InputMethodService() {
             isRecording = false
             activeStream = null
 
-            // Feed the entire recording at once, then drain — same pattern as Qwen3's
-            // one-shot decode, just via the streaming API's accept/decode calls.
-            for (chunk in allChunks) engine.acceptWaveform(stream, chunk)
+            // Signal end of audio then drain all remaining frames
             runCatching { engine.inputFinished(stream) }
             runCatching {
                 while (engine.isReady(stream)) {
@@ -412,10 +428,10 @@ class VoiceImeService : InputMethodService() {
                 }
             }
             val finalSegment = engine.getResult(stream).trim()
-            Log.d(TAG, "recording ended (offline mode): totalChunks=$chunkCount finalSegment='$finalSegment'")
+            Log.d(TAG, "recording ended: totalChunks=$chunkCount accumulated='$accumulated' finalSegment='$finalSegment'")
             runCatching { stream.release() }
 
-            onTranscriptionDone(finalSegment)
+            onTranscriptionDone((accumulated + finalSegment).trim())
         }
     }
 
