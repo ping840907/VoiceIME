@@ -183,11 +183,11 @@ adb push x_asr/ \
 
 ### 1. 加入 sherpa-onnx AAR
 
-前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.3.aar`，放入 `app/libs/`。
+前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.4.aar`，放入 `app/libs/`。
 
 ```groovy
 // app/build.gradle
-implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
+implementation(name: 'sherpa-onnx-1.13.4', ext: 'aar')
 ```
 
 ### 2. 其他依賴（已在 build.gradle）

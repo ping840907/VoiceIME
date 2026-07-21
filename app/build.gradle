@@ -45,7 +45,7 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // Qwen3 ASR via sherpa-onnx AAR (drop sherpa-onnx-<version>.aar into app/libs/)
-    implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
+    implementation(name: 'sherpa-onnx-1.13.4', ext: 'aar')
 
     // OpenCC — Simplified → Traditional Chinese
     implementation 'com.github.houbb:opencc4j:1.8.1'
