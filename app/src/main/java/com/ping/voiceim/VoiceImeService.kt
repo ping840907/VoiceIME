@@ -211,7 +211,7 @@ class VoiceImeService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
         selStart = newSelStart
         selEnd   = newSelEnd
-        if (isCursorMode && !isShiftOn) cursorPos = newSelEnd
+        if (!isShiftOn) cursorPos = newSelEnd
 
         if (!::layoutCandidateTop.isInitialized) return
         if (layoutCandidateTop.visibility == View.VISIBLE) {
@@ -381,22 +381,30 @@ class VoiceImeService : InputMethodService() {
         var accumulated = ""
         var lastShown   = ""
         composedLength  = 0
+        var chunkCount  = 0
 
         recordingJob = scope.launch {
             withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
                     onChunk = { chunk ->
+                        chunkCount++
                         engine.acceptWaveform(stream, chunk)
+                        var decodeCount = 0
                         while (engine.isReady(stream)) {
                             engine.decode(stream)
+                            decodeCount++
                         }
                         val partial  = engine.getResult(stream)
                         val combined = accumulated + partial
+                        if (chunkCount % 10 == 0 || decodeCount > 0) {
+                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
+                        }
                         if (combined.isNotBlank() && combined != lastShown) {
                             lastShown = combined
                             Handler(Looper.getMainLooper()).post { showLiveText(combined) }
                         }
                         if (engine.isEndpoint(stream)) {
+                            Log.d(TAG, "endpoint fired at chunk=$chunkCount partial='$partial'")
                             if (partial.isNotBlank()) accumulated += partial
                             engine.reset(stream)
                         }
@@ -416,6 +424,7 @@ class VoiceImeService : InputMethodService() {
                 }
             }
             val finalSegment = engine.getResult(stream).trim()
+            Log.d(TAG, "recording ended: totalChunks=$chunkCount accumulated='$accumulated' finalSegment='$finalSegment'")
             runCatching { stream.release() }
 
             onTranscriptionDone((accumulated + finalSegment).trim())
@@ -481,15 +490,20 @@ class VoiceImeService : InputMethodService() {
             if (showEmptyDictMessage) tvStatus.text = "詞彙庫為空，請先至設定新增詞彙"
             return
         }
-        if (selStart < selEnd) {
-            shiftAnchor  = selStart
-            cursorPos    = selEnd
-            isCursorMode = true
-            setShift(true)
-        } else {
-            cursorPos    = selEnd
-            isCursorMode = true
-            setShift(false)
+        if (!isShiftOn) {
+            // Only re-derive anchor/cursor from the host selection when this isn't already
+            // an in-progress Shift-gesture — otherwise this clobbers our own anchor every
+            // time ◀/▶ triggers onUpdateSelection, breaking contiguous selection extension.
+            if (selStart < selEnd) {
+                shiftAnchor  = selStart
+                cursorPos    = selEnd
+                isCursorMode = true
+                setShift(true)
+            } else {
+                cursorPos    = selEnd
+                isCursorMode = true
+                setShift(false)
+            }
         }
         populateCandidateChips()
         updatePanelLabel()
@@ -579,7 +593,6 @@ class VoiceImeService : InputMethodService() {
             btnShift.setTextColor(
                 ContextCompat.getColor(this, if (on) R.color.ime_accent_text else R.color.ime_key_text)
             )
-            btnCancelSelection.text = if (on) "取消選取" else "關閉"
         }
     }
 
