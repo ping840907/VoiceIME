@@ -16,15 +16,15 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
      ▼                                 ▼
  Qwen3AsrEngine                   XAsrEngine
  （OfflineRecognizer）             （OnlineRecognizer）
- 簡體中文                          繁體中文（逐 chunk 即時）
+ 簡體中文                          繁體中文（逐 chunk 即時刪除＋提交更新預覽）
      │ opencc4j                        │
      ▼                                 ▼
-              pendingText（預覽區）
+         commitText() 直接插入輸入框（無暫存/確認步驟）
                     │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-     長按/單點    詞彙鍵      確認插入
-   → 游標面板  → 游標面板  → commitText()
+       使用者以系統原生選字（長按拖曳）選取要修正的片段
+                    │
+                    ▼
+       詞彙鍵 → 候選面板（InputConnection 操作真實選取範圍）
 ```
 
 ---
@@ -37,7 +37,6 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 | `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援，含 UserDictionary 熱詞 |
 | `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer） |
 | `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止），支援離線與串流兩種模式 |
-| `SelectableTextView` | 自製長按 + 拖曳選取 TextView，不觸發系統焦點搶奪 |
 | `UserDictionary` | SharedPreferences JSON 詞彙庫 |
 | `DictSettingsActivity` | 詞彙管理頁面（新增 / 刪除） |
 | `ImeSettingsActivity` | 引擎切換與模型狀態頁面 |
@@ -49,44 +48,40 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 ```
 ┌────────────────────────────────────────┐
-│  辨識結果預覽區（長按 / 單點進入游標面板）  │
+│  （修正建議 Chip，辨識完成後視情況顯示）    │
+├────────────────────────────────────────┤
+│  頂部區（依模式切換內容，見下）             │
+│    一般模式：🎙️ MIC 按鈕                  │
+│    候選模式：選取提示 + 詞彙 Chip 列表      │
 ├────────────────────────────────────────┤
 │  進度條 / 狀態文字                        │
-├──────────┬────────────┬────────────────┤
-│  ⌫ / 取消 │    🎙️ MIC  │   ↵ / 確認插入 │
-├──────────┴────────────┴────────────────┤
-│  ⚙️      │    空格     │    詞彙         │
-└──────────┴────────────┴────────────────┘
+├──────┬──────┬──────┬──────┤
+│  ⇧  │  ◀  │  ▶  │  ⌫  │  ← 固定操作區第一排
+├──────┼──────┼──────┼──────┤
+│  ⚙️  │詞彙/關閉│ 空格 │  ↵  │  ← 固定操作區第二排
+└──────┴──────┴──────┴──────┘
 ```
+
+辨識結果會直接 `commitText()` 插入目前聚焦的輸入框，沒有暫存/預覽/確認插入這幾個步驟——第一次辨識結果就滿意的話，講完就結束了。
+
+只有**頂部區**（🎙️ 按鈕 ↔ 候選面板）跟**詞彙／關閉**按鈕會依模式切換內容；下方兩排共八個按鍵固定顯示在鍵盤上同一個位置，不論目前是一般模式還是候選模式都能直接使用，不需要先切換回一般模式才能刪字或送出。
 
 ### 按鍵行為
 
-| 按鍵 | 無辨識文字 | 有辨識文字 |
-|------|-----------|-----------|
-| ⌫ | 刪除游標前一字 | 取消辨識結果 |
-| ⌫ 長按 | 連續刪除（50 ms/字） | — |
-| ↵ | 送出 Enter / IME action | 確認插入辨識結果 |
-| 🎙️ | 開始錄音 | 開始錄音（取代舊結果） |
-| 🎙️（錄音中） | 提前停止 | — |
-| ⚙️ | 開啟設定 Activity | — |
-| 詞彙 | 開啟游標面板（直接插入模式） | 開啟游標面板（插入至游標位置） |
-| 空格 | 插入空白字元 | — |
+| 按鍵 | 說明 |
+|------|-----------|
+| ⇧ | 切換選取模式，錨點固定在目前游標位置 |
+| ◀ / ▶ | 透過 `InputConnection.setSelection()` 移動真實游標／選取範圍（長按可連續移動） |
+| ⌫ | 刪除游標前一字（長按連續刪除，50 ms/字） |
+| ⚙️ | 開啟設定 Activity |
+| 詞彙 / 關閉 | 開啟候選面板／關閉候選面板（依目前模式切換） |
+| 空格 | 插入空白字元 |
+| ↵ | 送出 Enter / IME action |
+| 🎙️ | 開始錄音／（錄音中）提前停止 |
 
-### 游標面板
+### 候選面板（修正機制）
 
-長按預覽區、單點預覽區、或按「詞彙」鍵，都會進入同一個游標面板。
-
-```
-┌────────────────────────────────────────┐
-│  辨識結果（含游標 |）                    │
-├──────────────────────────────────────  │
-│  插入位置 / 選取範圍提示                  │
-├────────────────────────────────────────┤
-│  [詞彙 Chip 列表]                       │
-├──────┬───────────┬───────────┬─────────┤
-│  ⇧   │     ◀     │     ▶     │  關閉   │
-└──────┴───────────┴───────────┴─────────┘
-```
+修正辨識結果不再需要我們自製的選字手勢——直接用**系統原生的長按拖曳選字**選取輸入框裡想修正的片段即可。`VoiceImeService` 透過 `onUpdateSelection()` 觀察輸入框的選取狀態，偵測到非空選取時自動切換到候選模式（若詞典是空的則靜默不切換，避免干擾單純複製貼上的操作）；也可以隨時按「詞彙」鍵手動開啟，此時作用對象是目前的選取範圍（有選取則替換）或游標位置（無選取則插入）。
 
 **游標模式**（Shift OFF）
 - ◀ / ▶：移動插入游標
@@ -95,10 +90,14 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 **選取模式**（Shift ON）
 - ◀ / ▶：從錨點延伸 / 收縮選取範圍
-- 點擊詞彙 Chip：替換選取範圍
-- 按 ⇧ 或「取消選取」：游標回到錨點，回到游標模式
+- 點擊詞彙 Chip：透過 `commitText()` 替換選取範圍
+- 按 ⇧ 或「關閉」：游標回到錨點，回到游標模式
 
-長按拖曳進入面板時，Shift 預設為 ON（拖曳起點為錨點）。
+原生長按拖曳選字進入候選模式時，Shift 預設為 ON（選取起點為錨點）。
+
+### 修正建議 Chip
+
+辨識完成並插入後，會即時比對剛插入的文字與使用者詞典（編輯距離 1 以內的近似片段），若有命中則在上方顯示「錯字→正確」的建議 Chip，點擊即修正；沒有相關建議或內容已變更則不顯示。
 
 ---
 
@@ -121,11 +120,13 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 即時串流辨識，邊說邊顯示結果，速度較快，但不會自動加入標點符號，也不支援自訂詞彙熱詞。
 
-基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分辨識結果即時顯示於預覽區。原生輸出繁體中文，不需 opencc4j 後處理。
+基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分結果即時顯示於輸入框。原生輸出繁體中文，不需 opencc4j 後處理。
+
+Provider 優先順序與 Qwen3 相同（`nnapi` → `cpu`）。曾懷疑是 NNAPI 對 streaming transducer 的遞迴解碼器狀態支援不佳導致默默輸出空白結果，但實測發現改為純 CPU provider 後症狀完全相同（`decode()` 正常執行、麥克風確實錄到有效音量，但 `getResult()` 從頭到尾都是空字串），排除了 provider 本身的嫌疑，問題仍待查（可能是模型檔案版本不匹配或原生解碼層的靜默失敗）。
+
+即時預覽**不使用**輸入法的組字（composing region）機制——實測發現不少輸入框（自訂 View、部分跨平台框架等）對組字區域的渲染/更新支援不完整，導致畫面完全沒有反應。改用 `deleteSurroundingText()` + `commitText()` 這兩個最基礎、幾乎所有輸入框都正確支援的操作：每次有新的部分結果，先刪除上一次顯示的暫定文字，再提交新的文字，模擬「即時修訂」的效果；最終結果送出時比照辦理，確保暫定文字被正確替換而非重複疊加。
 
 `OnlineRecognizer` 偵測到語音停頓（endpoint）時會呼叫 `reset()` 清空內部解碼狀態，但錄音本身不會因此停止（會持續錄到使用者手動停止或達到 15 秒上限）；`VoiceImeService` 因此在每次 reset 前於本地累積已完成的片段，避免說話中間的自然停頓把先前已辨識的內容洗掉。
-
-**已知問題（調查中）**：目前無論是 NNAPI 或 CPU provider、逐 chunk 串流解碼或整段錄完再一次解碼、寫入預覽區的 TextView 或宿主輸入框，都重現同一個症狀——麥克風確實收到有效音量的語音、`decode()` 正常執行，但 `getResult()` 從頭到尾都是空字串，語音停頓偵測穩定地在固定的靜音逾時後觸發（如同從未偵測到語音）。已排除的可能：provider 選擇、串流解碼迴圈寫法、顯示機制、模型檔案下載不完整或版本不匹配（檔案大小與 HuggingFace 上列出的完全一致）。目前懷疑方向：`OnlineRecognizerConfig` 缺少此模型所需的特定參數，或 sherpa-onnx AAR 版本與模型匯出版本不相容。
 
 ---
 
@@ -185,11 +186,11 @@ adb push x_asr/ \
 
 ### 1. 加入 sherpa-onnx AAR
 
-前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.3.aar`，放入 `app/libs/`。
+前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.4.aar`，放入 `app/libs/`。
 
 ```groovy
 // app/build.gradle
-implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
+implementation(name: 'sherpa-onnx-1.13.4', ext: 'aar')
 ```
 
 ### 2. 其他依賴（已在 build.gradle）
@@ -226,7 +227,6 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 app/src/main/java/com/ping/voiceim/
 ├── VoiceImeService.kt          # InputMethodService 主體
-├── SelectableTextView.kt       # 自製長按選取 TextView
 ├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝 + 模糊修正比對
 ├── DictUsage.kt                # 詞彙使用次數統計
 ├── DictSettingsActivity.kt     # 詞彙管理頁面
