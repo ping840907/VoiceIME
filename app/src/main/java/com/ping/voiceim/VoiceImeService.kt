@@ -113,7 +113,6 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnCancelSelection: TextView
     private lateinit var scrollSuggestions: ScrollView
     private lateinit var llSuggestions: ChipGroup
-    private lateinit var tvPreview: TextView
 
     // Repeat-move for selection expand buttons (long-press)
     private val repeatMoveHandler = Handler(Looper.getMainLooper())
@@ -149,7 +148,6 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
         scrollSuggestions    = view.findViewById(R.id.scroll_suggestions)
         llSuggestions        = view.findViewById(R.id.ll_suggestions)
-        tvPreview            = view.findViewById(R.id.tv_preview)
 
         btnMic.setOnClickListener { onMicClick() }
         btnBackspace.setOnClickListener { sendBackspace() }
@@ -368,25 +366,20 @@ class VoiceImeService : InputMethodService() {
             return
         }
         activeStream = stream
-        Log.d(TAG, "X-ASR stream created, activeProvider=${engine.activeProvider}")
 
         isRecording = true
         closeCandidatePanel()
         hideSuggestions()
         setState(State.RECORDING)
 
-        tvPreview.text = ""
-        tvPreview.visibility = View.VISIBLE
-
         composedLength  = 0
-        var chunkCount  = 0
 
-        // Staging buffer: each chunk's decode result is pushed straight into the host
-        // field the instant it's available (via showLiveText's delete+commit), the same
-        // way the old preview bar showed text as soon as the engine produced it — just
-        // writing to the real input field instead of a dedicated TextView. accumulated
-        // holds everything finalized before the current in-progress (post-reset) segment,
-        // since reset() clears the recognizer's decode state on every endpoint.
+        // engine.reset(stream) clears the recognizer's internal decode state (and thus
+        // getResult()) whenever a natural pause is detected — but recording itself keeps
+        // going until the user manually stops or the max duration is hit. Without tracking
+        // what was already transcribed before each reset, any pause mid-recording silently
+        // discards everything said before it. Accumulate finalized segments locally so both
+        // the live preview and the final commit include everything.
         var accumulated = ""
         var lastShown   = ""
 
@@ -394,32 +387,17 @@ class VoiceImeService : InputMethodService() {
             withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
                     onChunk = { chunk ->
-                        chunkCount++
-                        var maxAbs = 0f
-                        for (s in chunk) { val a = if (s < 0) -s else s; if (a > maxAbs) maxAbs = a }
                         engine.acceptWaveform(stream, chunk)
-                        var decodeCount = 0
                         while (engine.isReady(stream)) {
                             engine.decode(stream)
-                            decodeCount++
                         }
                         val partial  = engine.getResult(stream)
                         val combined = accumulated + partial
-                        if (chunkCount % 10 == 0 || decodeCount > 0) {
-                            Log.d(TAG, "chunk=$chunkCount samples=${chunk.size} maxAbs=$maxAbs decodeCount=$decodeCount partial='$partial' accumulated='$accumulated'")
-                        }
                         if (combined.isNotBlank() && combined != lastShown) {
                             lastShown = combined
                             Handler(Looper.getMainLooper()).post { showLiveText(combined) }
                         }
-                        // Diagnostic preview, independent of the host field: shows the raw
-                        // decode state every chunk (even when blank) so it's visible whether
-                        // the engine is alive vs. genuinely producing nothing.
-                        Handler(Looper.getMainLooper()).post {
-                            tvPreview.text = "chunk=$chunkCount decode=$decodeCount \"$combined\""
-                        }
                         if (engine.isEndpoint(stream)) {
-                            Log.d(TAG, "endpoint fired at chunk=$chunkCount partial='$partial'")
                             if (partial.isNotBlank()) accumulated += partial
                             engine.reset(stream)
                         }
@@ -439,12 +417,9 @@ class VoiceImeService : InputMethodService() {
                 }
             }
             val finalSegment = engine.getResult(stream).trim()
-            Log.d(TAG, "recording ended: totalChunks=$chunkCount accumulated='$accumulated' finalSegment='$finalSegment'")
             runCatching { stream.release() }
 
-            val fullText = (accumulated + finalSegment).trim()
-            tvPreview.text = "final(totalChunks=$chunkCount): \"$fullText\""
-            onTranscriptionDone(fullText)
+            onTranscriptionDone((accumulated + finalSegment).trim())
         }
     }
 

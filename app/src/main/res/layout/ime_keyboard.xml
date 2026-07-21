@@ -86,22 +86,6 @@
         </ScrollView>
     </LinearLayout>
 
-    <!-- Diagnostic preview: mirrors the live X-ASR decode result independent of the host
-         app's InputConnection, so the recognizer's own output can be observed even if
-         writing into the host field is somehow the problem. -->
-    <TextView
-        android:id="@+id/tv_preview"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="32dp"
-        android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@color/ime_preview_bg"
-        android:textSize="14sp"
-        android:textColor="@color/ime_status_text"
-        android:visibility="gone" />
-
     <!-- RMS / indeterminate progress -->
     <ProgressBar
         android:id="@+id/progress_bar"

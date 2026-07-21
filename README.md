@@ -122,7 +122,7 @@ Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X
 
 基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分結果即時顯示於輸入框。原生輸出繁體中文，不需 opencc4j 後處理。
 
-Provider 優先順序與 Qwen3 相同（`nnapi` → `cpu`）。曾懷疑是 NNAPI 對 streaming transducer 的遞迴解碼器狀態支援不佳導致默默輸出空白結果，但實測發現改為純 CPU provider 後症狀完全相同（`decode()` 正常執行、麥克風確實錄到有效音量，但 `getResult()` 從頭到尾都是空字串），排除了 provider 本身的嫌疑；也曾還原成重新設計前（有預覽區、`pendingText` 編輯流程）的版本測試，結果仍相同，排除了 direct-commit-editing 重新設計的嫌疑；模型檔案大小也與 HuggingFace 上列出的完全一致，排除下載不完整/版本不匹配。目前懷疑方向是 sherpa-onnx AAR 本身的版本迴歸——因此暫時將依賴改回 `1.13.3`（原本用的版本，`1.13.4` 是本次除錯過程中升級的）進行測試。
+Provider 優先順序與 Qwen3 相同（`nnapi` → `cpu`）。曾一度出現辨識結果持續空白（`decode()` 正常執行、麥克風確實錄到有效音量，但 `getResult()` 從頭到尾都是空字串）的問題，追查後確認是 sherpa-onnx AAR `1.13.4` 版本的迴歸，改回 `1.13.3` 後解決。
 
 即時預覽**不使用**輸入法的組字（composing region）機制——實測發現不少輸入框（自訂 View、部分跨平台框架等）對組字區域的渲染/更新支援不完整，導致畫面完全沒有反應。改用 `deleteSurroundingText()` + `commitText()` 這兩個最基礎、幾乎所有輸入框都正確支援的操作：每次有新的部分結果，先刪除上一次顯示的暫定文字，再提交新的文字，模擬「即時修訂」的效果；最終結果送出時比照辦理，確保暫定文字被正確替換而非重複疊加。
 
