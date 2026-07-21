@@ -42,13 +42,7 @@ class XAsrEngine(private val context: Context) {
 
             release()
 
-            // Try NNAPI first, same as Qwen3AsrEngine — falls back to CPU if unavailable or if
-            // the streaming transducer graph isn't NNAPI-compatible on this device. Unverified
-            // on real hardware: streaming models push many small inference calls per second,
-            // where NNAPI's per-call marshaling overhead can outweigh any speedup, and some
-            // vendor NNAPI drivers reject/partially-fallback dynamic-state graphs. If this
-            // causes a native crash (uncaught C++ exception) rather than a catchable one here,
-            // it needs to be reported and reverted to CPU-only.
+            // Try NNAPI first, falling back to CPU — confirmed working on real hardware.
             var lastError: Exception? = null
             for (provider in ModelConfig.ASR_PROVIDER_PRIORITY) {
                 try {

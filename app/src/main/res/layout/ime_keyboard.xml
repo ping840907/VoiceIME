@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -23,9 +24,67 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:chipSpacingHorizontal="4dp"
-            app:chipSpacingVertical="2dp"
-            xmlns:app="http://schemas.android.com/apk/res-auto" />
+            app:chipSpacingVertical="2dp" />
     </ScrollView>
+
+    <!-- ── Top area: swaps between the mic button (normal mode) and the
+         candidate chip list (candidate-panel mode) — everything below this
+         (the operation rows) stays fixed in place either way.            -->
+
+    <LinearLayout
+        android:id="@+id/layout_mic_row"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <ImageButton
+            android:id="@+id/btn_mic"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:src="@drawable/ic_mic"
+            android:background="@drawable/mic_bg"
+            android:contentDescription="語音輸入"
+            android:scaleType="centerInside"
+            android:padding="14dp"
+            android:elevation="4dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/layout_candidate_top"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Context label: insertion point or selected range, read live from InputConnection -->
+        <TextView
+            android:id="@+id/tv_selected_range"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textSize="12sp"
+            android:textColor="@color/ime_status_text"
+            android:singleLine="true" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="96dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/ll_candidates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="4dp"
+                app:chipSpacingVertical="2dp" />
+        </ScrollView>
+    </LinearLayout>
 
     <!-- RMS / indeterminate progress -->
     <ProgressBar
@@ -47,210 +106,141 @@
         android:textColor="@color/ime_status_text"
         android:text="點擊麥克風開始語音輸入" />
 
-    <!-- ── Normal controls ──────────────────────────────────────────────── -->
+    <!-- ── Shared operation row — always visible in the same place, merging the
+         normal-mode text-editing keys (⌫ 空格 ↵) with the candidate-panel
+         navigation keys (⇧ ◀ ▶), so muscle memory doesn't have to relearn a
+         different layout depending on which panel is open.               -->
     <LinearLayout
-        android:id="@+id/layout_normal_controls"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
 
-        <!-- Main row: cancel/backspace | mic | commit/enter -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+        <TextView
+            android:id="@+id/btn_backspace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="⌫"
+            android:textSize="20sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-            <TextView
-                android:id="@+id/btn_backspace"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="⌫"
-                android:textSize="26sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
 
-            <Space android:layout_width="8dp" android:layout_height="0dp" />
+        <TextView
+            android:id="@+id/btn_sel_expand_left"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="◀"
+            android:textSize="16sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-            <ImageButton
-                android:id="@+id/btn_mic"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_mic"
-                android:background="@drawable/mic_bg"
-                android:contentDescription="語音輸入"
-                android:scaleType="centerInside"
-                android:padding="14dp"
-                android:elevation="4dp" />
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
 
-            <Space android:layout_width="8dp" android:layout_height="0dp" />
+        <TextView
+            android:id="@+id/btn_shift"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="⇧"
+            android:textSize="16sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-            <TextView
-                android:id="@+id/btn_enter"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="↵"
-                android:textSize="26sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-        </LinearLayout>
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
 
-        <!-- Bottom row: settings | space | dict toggle -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/btn_sel_expand_right"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="▶"
+            android:textSize="16sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-            <ImageButton
-                android:id="@+id/btn_settings"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:src="@drawable/ic_settings"
-                android:background="@drawable/key_bg"
-                android:contentDescription="詞彙設定"
-                android:scaleType="centerInside"
-                android:padding="6dp" />
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
 
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
+        <TextView
+            android:id="@+id/btn_space"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="空格"
+            android:textSize="13sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-            <TextView
-                android:id="@+id/btn_space"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="3"
-                android:gravity="center"
-                android:text="空格"
-                android:textSize="14sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
+        <Space android:layout_width="4dp" android:layout_height="0dp" />
 
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
-                android:id="@+id/btn_dict_insert"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="詞彙"
-                android:textSize="13sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/btn_enter"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="↵"
+            android:textSize="20sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
     </LinearLayout>
 
-    <!-- ── Candidate panel ────────────────────────────────────────────────
-         Operates on the host field's real selection/cursor via
-         InputConnection — opened either by the 詞彙 key, or automatically
-         when the user selects text natively (long-press + drag) in the
-         field itself.                                                    -->
+    <Space android:layout_width="0dp" android:layout_height="6dp" />
+
+    <!-- ── Bottom row — also always visible. 詞彙/取消選取 share one slot and
+         toggle depending on whether the candidate panel is open.         -->
     <LinearLayout
-        android:id="@+id/layout_candidates"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone"
-        android:background="@color/ime_bg">
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:gravity="center_vertical">
 
-        <!-- Context label (changes per mode) -->
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/key_bg"
+            android:contentDescription="設定"
+            android:scaleType="centerInside"
+            android:padding="6dp" />
+
+        <Space android:layout_width="6dp" android:layout_height="0dp" />
+
         <TextView
-            android:id="@+id/tv_selected_range"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:gravity="center_vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textSize="12sp"
-            android:textColor="@color/ime_status_text"
-            android:singleLine="true" />
+            android:id="@+id/btn_dict_insert"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="4"
+            android:gravity="center"
+            android:text="詞彙"
+            android:textSize="13sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
 
-        <!-- Candidate / dict chips -->
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="96dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp">
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/ll_candidates"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="4dp"
-                app:chipSpacingVertical="2dp"
-                xmlns:app="http://schemas.android.com/apk/res-auto" />
-        </ScrollView>
-
-        <!-- Actions -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/btn_shift"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="⇧"
-                android:textSize="16sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
-                android:id="@+id/btn_sel_expand_left"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="◀"
-                android:textSize="16sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
-                android:id="@+id/btn_sel_expand_right"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="▶"
-                android:textSize="16sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-
-            <Space android:layout_width="6dp" android:layout_height="0dp" />
-
-            <TextView
-                android:id="@+id/btn_cancel_selection"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="2"
-                android:gravity="center"
-                android:text="關閉"
-                android:textSize="13sp"
-                android:textColor="@color/ime_key_text"
-                android:background="@drawable/key_bg" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/btn_cancel_selection"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="4"
+            android:gravity="center"
+            android:visibility="gone"
+            android:text="關閉"
+            android:textSize="13sp"
+            android:textColor="@color/ime_key_text"
+            android:background="@drawable/key_bg" />
     </LinearLayout>
 
 </LinearLayout>

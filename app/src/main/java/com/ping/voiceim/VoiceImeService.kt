@@ -99,8 +99,8 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnDictInsert: TextView
     private lateinit var btnSettings: ImageButton
     private lateinit var progressBar: ProgressBar
-    private lateinit var layoutNormalControls: LinearLayout
-    private lateinit var layoutCandidates: LinearLayout
+    private lateinit var layoutMicRow: LinearLayout
+    private lateinit var layoutCandidateTop: LinearLayout
     private lateinit var tvSelectedRange: TextView
     private lateinit var llCandidates: ChipGroup
     private lateinit var btnShift: TextView
@@ -134,8 +134,8 @@ class VoiceImeService : InputMethodService() {
         btnDictInsert        = view.findViewById(R.id.btn_dict_insert)
         btnSettings          = view.findViewById(R.id.btn_settings)
         progressBar          = view.findViewById(R.id.progress_bar)
-        layoutNormalControls = view.findViewById(R.id.layout_normal_controls)
-        layoutCandidates     = view.findViewById(R.id.layout_candidates)
+        layoutMicRow         = view.findViewById(R.id.layout_mic_row)
+        layoutCandidateTop   = view.findViewById(R.id.layout_candidate_top)
         tvSelectedRange      = view.findViewById(R.id.tv_selected_range)
         llCandidates         = view.findViewById(R.id.ll_candidates)
         btnShift             = view.findViewById(R.id.btn_shift)
@@ -209,8 +209,8 @@ class VoiceImeService : InputMethodService() {
         selEnd   = newSelEnd
         if (isCursorMode && !isShiftOn) cursorPos = newSelEnd
 
-        if (!::layoutCandidates.isInitialized) return
-        if (layoutCandidates.visibility == View.VISIBLE) {
+        if (!::layoutCandidateTop.isInitialized) return
+        if (layoutCandidateTop.visibility == View.VISIBLE) {
             updatePanelLabel()
         } else if (!isRecording && state == State.IDLE && newSelStart < newSelEnd) {
             // User selected text natively (long-press + drag in the host field) — offer
@@ -368,6 +368,15 @@ class VoiceImeService : InputMethodService() {
         hideSuggestions()
         setState(State.RECORDING)
 
+        // engine.reset(stream) clears the recognizer's internal decode state (and thus
+        // getResult()) whenever a natural pause is detected — but recording itself keeps
+        // going until the user manually stops or the max duration is hit. Without tracking
+        // what was already transcribed before each reset, any pause mid-recording silently
+        // discards everything said before it, and setComposingText only ever shows the
+        // current segment (it replaces, not appends). Accumulate finalized segments locally
+        // so both the live composing text and the final commit include everything.
+        var accumulated = ""
+
         recordingJob = scope.launch {
             withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
@@ -376,16 +385,18 @@ class VoiceImeService : InputMethodService() {
                         while (engine.isReady(stream)) {
                             engine.decode(stream)
                         }
-                        val partial = engine.getResult(stream)
-                        if (partial.isNotBlank()) {
+                        val partial  = engine.getResult(stream)
+                        val combined = accumulated + partial
+                        if (combined.isNotBlank()) {
                             // Live-revising "composing" text — the standard InputConnection
                             // mechanism for exactly this (each call replaces the previous
                             // composing span; a later commitText() finalizes it automatically).
                             Handler(Looper.getMainLooper()).post {
-                                currentInputConnection?.setComposingText(partial, 1)
+                                currentInputConnection?.setComposingText(combined, 1)
                             }
                         }
                         if (engine.isEndpoint(stream)) {
+                            if (partial.isNotBlank()) accumulated += partial
                             engine.reset(stream)
                         }
                     },
@@ -403,10 +414,10 @@ class VoiceImeService : InputMethodService() {
                     engine.decode(stream)
                 }
             }
-            val finalText = engine.getResult(stream).trim()
+            val finalSegment = engine.getResult(stream).trim()
             runCatching { stream.release() }
 
-            onTranscriptionDone(finalText)
+            onTranscriptionDone((accumulated + finalSegment).trim())
         }
     }
 
@@ -458,20 +469,21 @@ class VoiceImeService : InputMethodService() {
         }
         populateCandidateChips()
         updatePanelLabel()
-        btnShift.visibility         = View.VISIBLE
-        btnSelExpandLeft.visibility  = View.VISIBLE
-        btnSelExpandRight.visibility = View.VISIBLE
-        layoutNormalControls.visibility = View.GONE
-        layoutCandidates.visibility     = View.VISIBLE
-        scrollSuggestions.visibility    = View.GONE
+        layoutMicRow.visibility       = View.GONE
+        layoutCandidateTop.visibility = View.VISIBLE
+        btnDictInsert.visibility      = View.GONE
+        btnCancelSelection.visibility = View.VISIBLE
+        scrollSuggestions.visibility  = View.GONE
     }
 
     private fun closeCandidatePanel() {
         isCursorMode = false
         setShift(false)
-        if (!::layoutCandidates.isInitialized) return
-        layoutCandidates.visibility     = View.GONE
-        layoutNormalControls.visibility = View.VISIBLE
+        if (!::layoutCandidateTop.isInitialized) return
+        layoutCandidateTop.visibility = View.GONE
+        layoutMicRow.visibility       = View.VISIBLE
+        btnDictInsert.visibility      = View.VISIBLE
+        btnCancelSelection.visibility = View.GONE
     }
 
     private fun populateCandidateChips() {
