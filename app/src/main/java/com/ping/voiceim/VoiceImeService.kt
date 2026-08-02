@@ -168,6 +168,11 @@ class VoiceImeService : InputMethodService() {
         btnSpace.setOnClickListener { commitText(" ") }
         btnDictInsert.setOnClickListener { showCandidatePanel() }
         btnSettings.setOnClickListener { openMainSettings() }
+        btnSettings.setOnLongClickListener {
+            val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.showInputMethodPicker()
+            true
+        }
         btnShift.setOnClickListener { toggleShift() }
         btnCancelSelection.setOnClickListener {
             if (isShiftOn) {
