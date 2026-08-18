@@ -1,4 +1,4 @@
-package com.ping.voiceim.engine
+package com.ping.voiceime.engine
 
 /** Where to fetch each engine's model files from, and how to lay them out on disk. */
 object ModelDownloadSpec {

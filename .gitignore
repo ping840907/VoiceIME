@@ -1,5 +1,6 @@
 # Gradle
 .gradle/
+.kotlin/
 build/
 app/build/
 local.properties
@@ -15,3 +16,8 @@ local.properties
 
 # Model files (large binaries — users download separately)
 app/src/main/assets/models/
+
+# AAR / JAR binary libraries
+app/libs/*.aar
+app/libs/*.jar
+

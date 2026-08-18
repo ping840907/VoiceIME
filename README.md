@@ -1,254 +1,197 @@
-# VoiceIME — 離線語音輸入法
+# VoiceIME — Android 離線語音輸入法
 
-Android 離線語音輸入鍵盤（Input Method Service）。以 Qwen3-ASR 或 X-ASR 為辨識引擎，在裝置本機完成語音辨識，辨識過程不需要網路連線（僅首次下載模型時需要）。
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9.0-purple.svg)](https://kotlinlang.org)
+
+**VoiceIME** 是一款專為 Android 設計的本機離線語音輸入法（Input Method Service）。提供 **Qwen3-ASR** 與 **X-ASR** 雙辨識引擎，所有語音辨識與模型推理均於裝置端本機（On-Device）完成，無需連網即可高速輸入，保護隱私無外洩疑慮。
 
 ---
 
-## 架構概覽
+## ✨ 核心特色
+
+- 🔒 **完全離線、隱私無虞**：模型全於本機運作（僅首次於設定頁下載模型時需要網路連線），日常語音輸入零網路請求。
+- 🎙️ **雙語音辨識引擎自由切換**：
+  - **Qwen3-ASR (0.6B int8)**：高精確度離線辨識，結合自訂詞庫熱詞（Hotwords）自動對齊，經 opencc4j 轉換為繁體中文，支援自訂停頓偵測靈敏度（VAD）。
+  - **X-ASR (Zipformer2 Streaming)**：即時串流辨識，邊講邊出字，延遲極低，原生支援台灣繁體中文、國台語及英語。
+- ⚡ **即時直接上屏（Direct Commit）**：辨識文字直接透過 `commitText()` 寫入輸入框，省去傳統輸入法繁瑣的「預覽框」與「確認插入」步驟。
+- 💡 **智慧模糊錯字修正**：辨識完成後自動以編輯距離比對使用者自訂詞庫，於鍵盤上方即時提供「錯字 → 正確詞彙」建議 Chip，點擊一鍵修正。
+- 📝 **原生選字與候選面板整合**：支援 Android 原生長按拖曳選字或鍵盤上的選取模式（⇧），開啟詞彙候選面板即可直接替換或插入選取內容。
+- ⌨️ **便捷實體操作區**：提供游標移動、選取擴展、連續刪除、一鍵喚出系統輸入法切換器（長按 ⚙️）等完整操作。
+- 📦 **內建模型下載管理**：設定頁面支援一鍵背景下載解壓 Qwen3-ASR 或 X-ASR 模型，附進度條與狀態通知。
+
+---
+
+## 🏗️ 架構概覽
 
 ```
-使用者語音
+使用者語音輸入
      │
      ▼
- AudioRecorder（VAD + PCM 採樣）
-     │ FloatArray (16 kHz)
-     ├─────────────────────────────────┐
-     ▼                                 ▼
- Qwen3AsrEngine                   XAsrEngine
- （OfflineRecognizer）             （OnlineRecognizer）
- 簡體中文                          繁體中文（逐 chunk 即時刪除＋提交更新預覽）
-     │ opencc4j                        │
-     ▼                                 ▼
-         commitText() 直接插入輸入框（無暫存/確認步驟）
-                    │
-       使用者以系統原生選字（長按拖曳）選取要修正的片段
-                    │
-                    ▼
-       詞彙鍵 → 候選面板（InputConnection 操作真實選取範圍）
+ AudioRecorder（麥克風採樣 16 kHz + VAD 靜音偵測）
+     │
+     ├─────────────────────────────────────────┐
+     ▼                                         ▼
+ Qwen3AsrEngine                           XAsrEngine
+ （OfflineRecognizer，NNAPI / CPU）        （OnlineRecognizer 串流）
+ 簡體輸出 + opencc4j 轉繁體                 原生繁體中文 / 國台英語
+     │                                         │
+     │ （一次性直接插入）                         │ （逐 chunk 即時修訂更新）
+     └────────────────────┬────────────────────┘
+                          ▼
+             commitText() 直接插入輸入框
+                          │
+         ┌────────────────┴────────────────┐
+         ▼                                 ▼
+   智慧錯字建議 Chip                  選取範圍 / 游標操作
+（點擊一鍵修正為自訂詞彙）              （詞彙候選面板快速替換）
 ```
 
 ---
 
-## 主要元件
+## 📱 鍵盤介面與操作
 
-| 類別 | 說明 |
-|------|------|
-| `VoiceImeService` | `InputMethodService` 主體，管理鍵盤 UI 與輸入流程 |
-| `Qwen3AsrEngine` | sherpa-onnx `OfflineRecognizer` 封裝，支援 NNAPI → CPU 備援，含 UserDictionary 熱詞 |
-| `XAsrEngine` | sherpa-onnx `OnlineRecognizer` 封裝（streaming transducer） |
-| `AudioRecorder` | 麥克風錄音，內建 VAD（靜音偵測自動停止），支援離線與串流兩種模式 |
-| `UserDictionary` | SharedPreferences JSON 詞彙庫 |
-| `DictSettingsActivity` | 詞彙管理頁面（新增 / 刪除） |
-| `ImeSettingsActivity` | 引擎切換與模型狀態頁面 |
-| `ModelConfig` | 模型路徑常數與推理參數 |
+```
+┌────────────────────────────────────────────────────────┐
+│  ［建議 Chip：錯字 → 正確詞彙］（辨識完成後智慧顯示）     │
+├────────────────────────────────────────────────────────┤
+│  頂部區域（依模式自動切換）：                            │
+│    • 一般模式：🎙️ 錄音按鈕（含音量回饋動畫）             │
+│    • 候選模式：目前選取內容提示 + 使用者自訂詞彙 Chip 列表 │
+├────────────────────────────────────────────────────────┤
+│  進度條 / 狀態指示文字（如：語音辨識中...）               │
+├────────────┬────────────┬────────────┬─────────────────┤
+│     ⇧      │     ◀      │     ▶      │       ⌫         │  ← 操作區第一排
+├────────────┼────────────┼────────────┼─────────────────┤
+│     ⚙️     │  詞彙 / 關閉│    空格    │       ↵         │  ← 操作區第二排
+└────────────┴────────────┴────────────┴─────────────────┘
+```
+
+### 按鍵功能說明
+
+| 按鍵 | 功能說明 |
+|:---:|---|
+| **🎙️** | 點擊開始錄音；錄音中點擊可手動提前停止並送出辨識 |
+| **⇧** | 切換選取模式（Shift ON/OFF），以目前游標位置為固定錨點 |
+| **◀ / ▶** | 移動游標或調整文字選取範圍（支援長按連續移動） |
+| **⌫** | 刪除游標前一個字元（支援長按連續退格，50ms/字） |
+| **⚙️** | 單擊開啟 VoiceIME 設定頁；**長按直接開啟系統輸入法切換視窗**（Input Method Picker） |
+| **詞彙 / 關閉** | 開啟或關閉詞彙候選面板（有選取文字時替換選取內容，無選取時在游標處插入） |
+| **空格** | 插入空格字元 |
+| **↵** | 送出換行或觸發目前輸入框的 IME Action（搜尋、送出、完成等） |
 
 ---
 
-## 鍵盤版面
+## ⚙️ 推理引擎介紹
 
-```
-┌────────────────────────────────────────┐
-│  （修正建議 Chip，辨識完成後視情況顯示）    │
-├────────────────────────────────────────┤
-│  頂部區（依模式切換內容，見下）             │
-│    一般模式：🎙️ MIC 按鈕                  │
-│    候選模式：選取提示 + 詞彙 Chip 列表      │
-├────────────────────────────────────────┤
-│  進度條 / 狀態文字                        │
-├──────┬──────┬──────┬──────┤
-│  ⇧  │  ◀  │  ▶  │  ⌫  │  ← 固定操作區第一排
-├──────┼──────┼──────┼──────┤
-│  ⚙️  │詞彙/關閉│ 空格 │  ↵  │  ← 固定操作區第二排
-└──────┴──────┴──────┴──────┘
-```
+可在「VoiceIME 設定」隨時切換辨識引擎，設定值自動儲存。
 
-辨識結果會直接 `commitText()` 插入目前聚焦的輸入框，沒有暫存/預覽/確認插入這幾個步驟——第一次辨識結果就滿意的話，講完就結束了。
+### 1. Qwen3-ASR（精確度優先，預設）
+- **技術基礎**：基於 Alibaba Qwen3-ASR 0.6B 模型量化版（sherpa-onnx `OfflineRecognizer`）。
+- **特點**：辨識精確度高，支援自訂詞庫熱詞（Hotwords）動態注入增強特定專有名詞辨識率。
+- **後處理**：透過 `opencc4j` 將簡體中文即時轉換為繁體中文。
+- **硬體加速**：優先使用 Android NNAPI（NPU / GPU），失敗時自動無縫備援至 CPU 多執行緒運算。
 
-只有**頂部區**（🎙️ 按鈕 ↔ 候選面板）跟**詞彙／關閉**按鈕會依模式切換內容；下方兩排共八個按鍵固定顯示在鍵盤上同一個位置，不論目前是一般模式還是候選模式都能直接使用，不需要先切換回一般模式才能刪字或送出。
-
-### 按鍵行為
-
-| 按鍵 | 說明 |
-|------|-----------|
-| ⇧ | 切換選取模式，錨點固定在目前游標位置 |
-| ◀ / ▶ | 透過 `InputConnection.setSelection()` 移動真實游標／選取範圍（長按可連續移動） |
-| ⌫ | 刪除游標前一字（長按連續刪除，50 ms/字） |
-| ⚙️ | 開啟設定 Activity |
-| 詞彙 / 關閉 | 開啟候選面板／關閉候選面板（依目前模式切換） |
-| 空格 | 插入空白字元 |
-| ↵ | 送出 Enter / IME action |
-| 🎙️ | 開始錄音／（錄音中）提前停止 |
-
-### 候選面板（修正機制）
-
-修正辨識結果不再需要我們自製的選字手勢——直接用**系統原生的長按拖曳選字**選取輸入框裡想修正的片段即可。`VoiceImeService` 透過 `onUpdateSelection()` 觀察輸入框的選取狀態，偵測到非空選取時自動切換到候選模式（若詞典是空的則靜默不切換，避免干擾單純複製貼上的操作）；也可以隨時按「詞彙」鍵手動開啟，此時作用對象是目前的選取範圍（有選取則替換）或游標位置（無選取則插入）。
-
-**游標模式**（Shift OFF）
-- ◀ / ▶：移動插入游標
-- 點擊詞彙 Chip：在游標位置插入
-- 按 ⇧：進入選取模式，錨點固定在目前游標位置
-
-**選取模式**（Shift ON）
-- ◀ / ▶：從錨點延伸 / 收縮選取範圍
-- 點擊詞彙 Chip：透過 `commitText()` 替換選取範圍
-- 按 ⇧ 或「關閉」：游標回到錨點，回到游標模式
-
-原生長按拖曳選字進入候選模式時，Shift 預設為 ON（選取起點為錨點）。
-
-### 修正建議 Chip
-
-辨識完成並插入後，會即時比對剛插入的文字與使用者詞典（編輯距離 1 以內的近似片段），若有命中則在上方顯示「錯字→正確」的建議 Chip，點擊即修正；沒有相關建議或內容已變更則不顯示。
+### 2. X-ASR（即時串流速度優先）
+- **技術基礎**：基於 Zipformer2 streaming transducer 架構（sherpa-onnx `OnlineRecognizer`）。
+- **模型來源**：[Luigi/x-asr-zh-tw-en-streaming-ft75m](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)
+- **特點**：邊說邊出字，超低延遲即時反饋；原生輸出繁體中文，針對台灣國台語口音與常用中英夾雜情境最佳化。
+- **上屏機制**：採用 `deleteSurroundingText()` + `commitText()` 即時更新上屏內容，相容各類第三方輸入框。
 
 ---
 
-## 推理引擎
+## 📥 模型下載與安裝
 
-兩個引擎可在設定頁切換，選擇持久化於 `SharedPreferences("asr_engine_selection")`。
+模型存放於 App 專用儲存空間（無需額外要求危險檔案權限）。
 
-### Qwen3-ASR（精準，可對齊自訂詞彙，支援停頓偵測，預設）
+### 方法 A：App 內一鍵下載（推薦）
+1. 安裝並開啟 VoiceIME App。
+2. 進入「VoiceIME 設定」選擇欲使用的引擎（Qwen3-ASR 或 X-ASR）。
+3. 點擊「下載模型」，App 將自動在背景完成下載、校驗與解壓縮。
 
-辨識較準確，會依 UserDictionary 自動對齊使用者自訂的詞彙，並可在設定頁調整停頓偵測靈敏度（多久沒說話就自動停止錄音）。
+### 方法 B：手動放置模型
+若需手動推播模型檔案至裝置：
 
-| Provider 優先順序 | 說明 |
-|-----------------|------|
-| `nnapi` | Android NNAPI，自動路由至 NPU / DSP / GPU（Android 8.1+） |
-| `cpu` | 純軟體備援，所有裝置可用 |
-
-錄音完成後一次性呼叫 `OfflineRecognizer.decode()`，結果透過 opencc4j 轉為繁體中文。UserDictionary 詞彙在載入引擎時作為熱詞（`OfflineQwen3AsrModelConfig.hotwords`）注入，詞彙更新時自動重新載入。
-
-### X-ASR（快速，不自動加標點）
-
-即時串流辨識，邊說邊顯示結果，速度較快，但不會自動加入標點符號，也不支援自訂詞彙熱詞。
-
-基於 Zipformer2 streaming transducer（sherpa-onnx `OnlineRecognizer`）。錄音期間每個 chunk 即時送入引擎，部分結果即時顯示於輸入框。原生輸出繁體中文，不需 opencc4j 後處理。
-
-Provider 優先順序與 Qwen3 相同（`nnapi` → `cpu`）。曾一度出現辨識結果持續空白（`decode()` 正常執行、麥克風確實錄到有效音量，但 `getResult()` 從頭到尾都是空字串）的問題，追查後確認是 sherpa-onnx AAR `1.13.4` 版本的迴歸，改回 `1.13.3` 後解決。
-
-即時預覽**不使用**輸入法的組字（composing region）機制——實測發現不少輸入框（自訂 View、部分跨平台框架等）對組字區域的渲染/更新支援不完整，導致畫面完全沒有反應。改用 `deleteSurroundingText()` + `commitText()` 這兩個最基礎、幾乎所有輸入框都正確支援的操作：每次有新的部分結果，先刪除上一次顯示的暫定文字，再提交新的文字，模擬「即時修訂」的效果；最終結果送出時比照辦理，確保暫定文字被正確替換而非重複疊加。
-
-`OnlineRecognizer` 偵測到語音停頓（endpoint）時會呼叫 `reset()` 清空內部解碼狀態，但錄音本身不會因此停止（會持續錄到使用者手動停止或達到 15 秒上限）；`VoiceImeService` 因此在每次 reset 前於本地累積已完成的片段，避免說話中間的自然停頓把先前已辨識的內容洗掉。
-
----
-
-## 模型安裝
-
-模型放置於 App 外部專用儲存（無需 READ_EXTERNAL_STORAGE）。
-
-**自動下載（推薦）**：在設定頁點擊「下載模型」，App 會直接從下方來源抓取並自動解壓縮/安裝到正確位置，僅此步驟需要網路連線；辨識過程仍完全於裝置本機執行。也可以用下方手動方式自行放置。
-
-### Qwen3-ASR
-
+#### Qwen3-ASR 模型路徑
 ```
-/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/qwen3_asr/
+/sdcard/Android/data/com.ping.voiceime[.debug]/files/models/qwen3_asr/
 ├── conv_frontend.onnx
 ├── encoder.int8.onnx
 ├── decoder.int8.onnx
 └── tokenizer/
     ├── vocab.json
     ├── merges.txt
-    ├── tokenizer_config.json
-    └── （其餘詞表檔案）
+    └── tokenizer_config.json
 ```
+- 下載來源：[sherpa-onnx ASR Models Releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models) (`sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2`)
 
-**下載來源**：[sherpa-onnx ASR Models Releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
-
+#### X-ASR 模型路徑
 ```
-sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
-```
-
-解壓後重新命名資料夾為 `qwen3_asr`，推送至裝置：
-
-```bash
-adb push qwen3_asr/ \
-  /sdcard/Android/data/com.ping.voiceim.debug/files/models/
-```
-
-### X-ASR
-
-```
-/sdcard/Android/data/com.ping.voiceim[.debug]/files/models/x_asr/
+/sdcard/Android/data/com.ping.voiceime[.debug]/files/models/x_asr/
 ├── encoder.int8.onnx
 ├── decoder.onnx
 ├── joiner.int8.onnx
 └── tokens.txt
 ```
-
-**下載來源**：[Luigi/x-asr-zh-tw-en-streaming-ft75m](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)
-
-```bash
-adb push x_asr/ \
-  /sdcard/Android/data/com.ping.voiceim.debug/files/models/
-```
+- 下載來源：[Luigi/x-asr-zh-tw-en-streaming-ft75m](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)
 
 ---
 
-## 建置步驟
+## 🛠️ 開發與建置
 
-### 1. 加入 sherpa-onnx AAR
-
-前往 https://github.com/k2-fsa/sherpa-onnx/releases 下載 `sherpa-onnx-1.13.3.aar`，放入 `app/libs/`。
-
-```groovy
-// app/build.gradle
-implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
+### 1. 準備 sherpa-onnx AAR
+至 [sherpa-onnx Releases](https://github.com/k2-fsa/sherpa-onnx/releases) 下載 `sherpa-onnx-1.13.3.aar`，並放置於專案 `app/libs/` 目錄下：
+```
+app/libs/sherpa-onnx-1.13.3.aar
 ```
 
-### 2. 其他依賴（已在 build.gradle）
-
-```groovy
-implementation 'com.github.houbb:opencc4j:1.8.1'
-implementation 'com.google.android.material:material:1.12.0'
-```
-
-### 3. 編譯與安裝
-
+### 2. 編譯專案
+使用 Gradle 進行建置：
 ```bash
 ./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+### 3. 安裝至裝置
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ### 4. 啟用輸入法
-
-系統設定 → 一般管理 → 鍵盤清單 → 啟用 VoiceIME → 切換為預設輸入法。
-
----
-
-## 首次使用
-
-1. 開啟 App，於設定頁點擊「下載模型」（需要網路連線）
-2. 啟用輸入法後，在任意輸入框點擊鍵盤圖示切換至 VoiceIME
-3. App 啟動時自動在背景預載模型（首次約 3–10 秒）
-4. 麥克風按鈕亮起後即可開始語音輸入
+前往 Android「系統設定」→「系統 / 一般管理」→「語言與鍵盤」→「螢幕鍵盤」→ 啟用 **VoiceIME** 並設定為預設輸入法。
 
 ---
 
-## 專案結構
+## 📁 專案架構
 
 ```
-app/src/main/java/com/ping/voiceim/
-├── VoiceImeService.kt          # InputMethodService 主體
-├── UserDictionary.kt           # 詞彙庫 SharedPreferences 封裝 + 模糊修正比對
-├── DictUsage.kt                # 詞彙使用次數統計
-├── DictSettingsActivity.kt     # 詞彙管理頁面
-├── ImeSettingsActivity.kt      # 設定頁（引擎選擇、模型下載、VAD 靈敏度）
+app/src/main/java/com/ping/voiceime/
+├── VoiceImeService.kt          # InputMethodService 主體（鍵盤渲染、事件派發、即時上屏）
+├── UserDictionary.kt           # 使用者自訂詞庫管理與 Levenshtein 模糊搜尋修正
+├── DictUsage.kt                # 詞彙使用次數統計（優先推薦常用詞）
+├── DictSettingsActivity.kt     # 詞庫設定與增修刪管理頁面
+├── ImeSettingsActivity.kt      # 主設定頁（引擎切換、模型下載、權限管理、VAD 靈敏度）
+├── ModelDownloadService.kt     # 背景模型下載前台服務（Foreground Service）
 └── engine/
-    ├── Qwen3AsrEngine.kt       # sherpa-onnx Qwen3-ASR 封裝（離線）
-    ├── XAsrEngine.kt           # sherpa-onnx X-ASR 封裝（串流）
-    ├── AudioRecorder.kt        # 麥克風錄音 + VAD
-    ├── ModelConfig.kt          # 模型路徑與參數常數
-    ├── ModelDownloadSpec.kt    # 模型下載來源設定
-    └── ModelDownloader.kt      # HTTP 下載 + tar.bz2 解壓縮
+    ├── Qwen3AsrEngine.kt       # sherpa-onnx 離線 Qwen3-ASR 辨識封裝（含熱詞注入）
+    ├── XAsrEngine.kt           # sherpa-onnx 串流 X-ASR 辨識封裝
+    ├── AudioRecorder.kt        # AudioRecord 麥克風錄音、PCM 採樣與 VAD 靜音偵測
+    ├── ModelConfig.kt          # 模型檔案路徑、預設參數與 Preferences 封裝
+    ├── ModelDownloadSpec.kt    # 模型下載來源定義（URL、MD5、解壓規則）
+    ├── ModelDownloadState.kt   # 全域下載進度狀態 StateFlow
+    └── ModelDownloader.kt      # HTTP 下載、解壓 tar.bz2 與目錄搬移工具
 ```
 
 ---
 
-## 授權
+## 🤝 致謝與開源授權 (Credits & Acknowledgements)
 
-程式碼採 MIT 授權。
+本專案採用 **[MIT License](LICENSE)** 開源授權，特別感謝以下開源專案與模型作者的貢獻：
 
-| 元件 | 授權 |
-|------|------|
-| sherpa-onnx | Apache 2.0 |
-| Qwen3-ASR-0.6B | Apache 2.0 |
-| opencc4j | Apache 2.0 |
-| Material Components for Android | Apache 2.0 |
+| 專案 / 模型 | 作者 / 團隊 | 授權 | 說明 |
+|---|---|---|---|
+| **[X-ASR (zh-tw-en-streaming)](https://huggingface.co/Luigi/x-asr-zh-tw-en-streaming-ft75m)** | [Luigi](https://huggingface.co/Luigi) | Apache 2.0 / Open Source | 感謝 Luigi 訓練並開源針對台灣繁體中文、國台語及英語微調之串流 Zipformer 語音模型 |
+| **[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** | [Next-gen Kaldi (k2-fsa)](https://github.com/k2-fsa) | Apache 2.0 | 提供強大且高效的跨平台 On-Device 語音辨識 Runtime |
+| **[Qwen3-ASR](https://github.com/QwenLM)** | Alibaba Qwen Team | Apache 2.0 | 提供優異表現的開源語音辨識大模型 |
+| **[opencc4j](https://github.com/houbb/opencc4j)** | [houbb](https://github.com/houbb) | Apache 2.0 | 提供純 Java/Kotlin 高效繁簡字詞轉換支援 |
+| **[Material Components for Android](https://github.com/material-components/material-components-android)** | Google | Apache 2.0 | 現代化 Material Design 介面元件庫 |
+| **[Commons Compress](https://commons.apache.org/proper/commons-compress/)** | Apache Software Foundation | Apache 2.0 | 用於 tar.bz2 模型封存檔於 Android 端本機解壓縮 |

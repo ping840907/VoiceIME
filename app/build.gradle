@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.ping.voiceim'
+    namespace 'com.ping.voiceime'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ping.voiceim"
+        applicationId "com.ping.voiceime"
         minSdk 26
         targetSdk 34
         versionCode 1

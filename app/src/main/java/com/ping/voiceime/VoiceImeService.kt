@@ -1,4 +1,4 @@
-package com.ping.voiceim
+package com.ping.voiceime
 
 import android.Manifest
 import android.content.Intent
@@ -24,10 +24,10 @@ import androidx.core.content.ContextCompat
 import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import com.ping.voiceim.engine.AudioRecorder
-import com.ping.voiceim.engine.ModelConfig
-import com.ping.voiceim.engine.Qwen3AsrEngine
-import com.ping.voiceim.engine.XAsrEngine
+import com.ping.voiceime.engine.AudioRecorder
+import com.ping.voiceime.engine.ModelConfig
+import com.ping.voiceime.engine.Qwen3AsrEngine
+import com.ping.voiceime.engine.XAsrEngine
 import com.k2fsa.sherpa.onnx.OnlineStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +46,7 @@ import kotlinx.coroutines.withContext
 class VoiceImeService : InputMethodService() {
 
     // IME runs under the bare system theme; wrap it so AppCompat/Material widgets inflate correctly.
-    private val themedCtx by lazy { ContextThemeWrapper(this, R.style.Theme_VoiceAssistant) }
+    private val themedCtx by lazy { ContextThemeWrapper(this, R.style.Theme_VoiceIME) }
 
     private val scope     = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val qwen3Asr  = lazy { Qwen3AsrEngine(this) }
@@ -703,7 +703,24 @@ class VoiceImeService : InputMethodService() {
 
     private fun commitText(text: String) { currentInputConnection?.commitText(text, 1) }
 
-    private fun sendBackspace() { currentInputConnection?.deleteSurroundingText(1, 0) }
+    private fun sendBackspace() {
+        val ic = currentInputConnection ?: return
+        val selected = ic.getSelectedText(0)
+        if (!selected.isNullOrEmpty() || selStart != selEnd) {
+            val insertPos = minOf(selStart, selEnd)
+            ic.commitText("", 1)
+            selStart = insertPos
+            selEnd = insertPos
+            cursorPos = insertPos
+            shiftAnchor = insertPos
+            setShift(false)
+            if (::layoutCandidateTop.isInitialized && layoutCandidateTop.visibility == View.VISIBLE) {
+                updatePanelLabel()
+            }
+        } else {
+            ic.deleteSurroundingText(1, 0)
+        }
+    }
 
     private fun sendEnter() {
         val ei     = currentInputEditorInfo
