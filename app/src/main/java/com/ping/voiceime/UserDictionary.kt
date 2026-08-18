@@ -1,4 +1,4 @@
-package com.ping.voiceim
+package com.ping.voiceime
 
 import android.content.Context
 import org.json.JSONObject

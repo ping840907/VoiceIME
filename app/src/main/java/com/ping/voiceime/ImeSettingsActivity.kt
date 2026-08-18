@@ -1,4 +1,4 @@
-package com.ping.voiceim
+package com.ping.voiceime
 
 import android.animation.ObjectAnimator
 import android.Manifest
@@ -19,10 +19,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.ping.voiceim.engine.ModelConfig
-import com.ping.voiceim.engine.ModelDownloadSpec
-import com.ping.voiceim.engine.ModelDownloadState
-import com.ping.voiceim.engine.ModelDownloader
+import com.ping.voiceime.engine.ModelConfig
+import com.ping.voiceime.engine.ModelDownloadSpec
+import com.ping.voiceime.engine.ModelDownloadState
+import com.ping.voiceime.engine.ModelDownloader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

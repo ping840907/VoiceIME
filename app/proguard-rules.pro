@@ -1,1 +1,1 @@
--keep class com.ping.elderlyassistant.** { *; }
+-keep class com.ping.voiceime.** { *; }

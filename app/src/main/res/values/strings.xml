@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">語音輸入法</string>
+    <string name="app_name">VoiceIME</string>
     <string name="subtype_label">繁體中文語音輸入</string>
 </resources>

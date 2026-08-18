@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.VoiceAssistant" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.VoiceIME" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/ime_accent</item>
         <item name="colorPrimaryDark">#0288D1</item>
         <item name="colorAccent">@color/ime_accent</item>

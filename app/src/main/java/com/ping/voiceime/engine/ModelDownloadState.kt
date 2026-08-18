@@ -1,4 +1,4 @@
-package com.ping.voiceim.engine
+package com.ping.voiceime.engine
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
