@@ -14,6 +14,7 @@ android {
         versionCode 1
         versionName "1.0.0"
 
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters 'arm64-v8a' }
     }
 
@@ -45,11 +46,14 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
 
     // Qwen3 ASR via sherpa-onnx AAR (drop sherpa-onnx-<version>.aar into app/libs/)
-    implementation(name: 'sherpa-onnx-1.13.3', ext: 'aar')
+    implementation(name: 'sherpa-onnx-1.13.8', ext: 'aar')
 
     // OpenCC — Simplified → Traditional Chinese
     implementation 'com.github.houbb:opencc4j:1.8.1'
 
     // tar.bz2 extraction for downloaded Qwen3-ASR model archive
     implementation 'org.apache.commons:commons-compress:1.26.0'
+
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }

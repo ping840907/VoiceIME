@@ -140,9 +140,9 @@
 ## 🛠️ 開發與建置
 
 ### 1. 準備 sherpa-onnx AAR
-至 [sherpa-onnx Releases](https://github.com/k2-fsa/sherpa-onnx/releases) 下載 `sherpa-onnx-1.13.3.aar`，並放置於專案 `app/libs/` 目錄下：
+至 [sherpa-onnx Releases](https://github.com/k2-fsa/sherpa-onnx/releases) 下載 `sherpa-onnx-1.13.8.aar`，並放置於專案 `app/libs/` 目錄下：
 ```
-app/libs/sherpa-onnx-1.13.3.aar
+app/libs/sherpa-onnx-1.13.8.aar
 ```
 
 ### 2. 編譯專案
