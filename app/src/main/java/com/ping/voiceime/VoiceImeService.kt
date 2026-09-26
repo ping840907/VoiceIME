@@ -112,6 +112,10 @@ class VoiceImeService : InputMethodService() {
     private lateinit var btnCancelSelection: TextView
     private lateinit var scrollSuggestions: ScrollView
     private lateinit var llSuggestions: ChipGroup
+    private lateinit var layoutInterimDisplay: LinearLayout
+    private lateinit var tvInterimStatus: TextView
+    private lateinit var scrollInterim: ScrollView
+    private lateinit var tvInterimText: TextView
 
     // Repeat-move for selection expand buttons (long-press)
     private val repeatMoveHandler = Handler(Looper.getMainLooper())
@@ -147,6 +151,10 @@ class VoiceImeService : InputMethodService() {
         btnCancelSelection   = view.findViewById(R.id.btn_cancel_selection)
         scrollSuggestions    = view.findViewById(R.id.scroll_suggestions)
         llSuggestions        = view.findViewById(R.id.ll_suggestions)
+        layoutInterimDisplay = view.findViewById(R.id.layout_interim_display)
+        tvInterimStatus      = view.findViewById(R.id.tv_interim_status)
+        scrollInterim        = view.findViewById(R.id.scroll_interim)
+        tvInterimText        = view.findViewById(R.id.tv_interim_text)
 
         btnMic.setOnClickListener { onMicClick() }
         btnBackspace.setOnClickListener { sendBackspace() }
@@ -203,8 +211,15 @@ class VoiceImeService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        closeCandidatePanel()
-        hideSuggestions()
+        if (!restarting) {
+            closeCandidatePanel()
+            hideSuggestions()
+            hideInterimArea()
+            if (state == State.IDLE) {
+                updateUi()
+                preloadModel()
+            }
+        }
     }
 
     override fun onFinishInput() {
@@ -212,6 +227,7 @@ class VoiceImeService : InputMethodService() {
         cancelRecording()
         closeCandidatePanel()
         hideSuggestions()
+        hideInterimArea()
     }
 
     override fun onUpdateSelection(
@@ -243,13 +259,46 @@ class VoiceImeService : InputMethodService() {
         scope.coroutineContext[Job]?.cancel()
     }
 
-    // ── Mic logic ─────────────────────────────────────────────────────────────
+    // ── Mic & Dual Engine logic ────────────────────────────────────────────────
+
+    private fun isDualEngineActive(): Boolean = ModelConfig.isDualEngineActive(this)
+
+    private fun showInterimArea() {
+        if (!::layoutInterimDisplay.isInitialized) return
+        layoutInterimDisplay.visibility = View.VISIBLE
+        tvInterimStatus.text = "雙模型模式"
+    }
+
+    private fun hideInterimArea() {
+        if (!::layoutInterimDisplay.isInitialized) return
+        layoutInterimDisplay.visibility = View.GONE
+        tvInterimText.text = ""
+    }
+
+    private fun setInterimStatus(status: String) {
+        if (!::tvInterimStatus.isInitialized) return
+        tvInterimStatus.text = status
+    }
+
+    private fun updateInterimText(text: String, isPlaceholder: Boolean = false) {
+        if (!::tvInterimText.isInitialized) return
+        tvInterimText.text = text
+        if (isPlaceholder) {
+            tvInterimText.setTextColor(ContextCompat.getColor(this, R.color.ime_status_text))
+        } else {
+            tvInterimText.setTextColor(ContextCompat.getColor(this, R.color.ime_key_text))
+            scrollInterim.post {
+                scrollInterim.fullScroll(View.FOCUS_DOWN)
+            }
+        }
+    }
 
     private fun onMicClick() {
         when {
             isRecording -> {
                 recorder.stopEarly()
                 tvStatus.text = "提早停止，辨識中…"
+                setInterimStatus("提早停止，辨識中…")
             }
             state == State.LOADING    -> { /* wait */ }
             state == State.PROCESSING -> { /* wait */ }
@@ -258,6 +307,26 @@ class VoiceImeService : InputMethodService() {
     }
 
     private fun preloadModel() {
+        if (isDualEngineActive()) {
+            val needX = !xAsr.value.isLoaded()
+            val needQ = !qwen3Asr.value.isLoaded() || qwen3NeedsReload()
+            if (!needX && !needQ) return
+            setState(State.LOADING)
+            scope.launch {
+                val (xOk, qOk) = withContext(Dispatchers.IO) {
+                    val x = if (needX) xAsr.value.load().success else true
+                    val q = if (needQ) qwen3Asr.value.load(buildHotwords()).success else true
+                    x to q
+                }
+                setState(State.IDLE)
+                if (!xOk || !qOk) {
+                    Log.e(TAG, "Dual engine preload failed (xOk=$xOk, qOk=$qOk)")
+                    showToast("雙模型載入失敗，請檢查設定")
+                }
+            }
+            return
+        }
+
         val engine = ModelConfig.selectedEngine(this)
         if (engine == ModelConfig.ENGINE_X_ASR) {
             if (xAsr.value.isLoaded()) return
@@ -290,6 +359,11 @@ class VoiceImeService : InputMethodService() {
 
     /** Hardware provider label for whichever engine is currently selected, or "" if not loaded. */
     private fun currentAcceleratorLabel(): String {
+        if (isDualEngineActive()) {
+            val qwenProv = if (qwen3Asr.isInitialized() && qwen3Asr.value.isLoaded()) qwen3Asr.value.activeProvider else null
+            val provText = qwenProv?.let { " (${providerDisplayName(it)})" } ?: ""
+            return "雙模型$provText"
+        }
         val engine = ModelConfig.selectedEngine(this)
         val provider = if (engine == ModelConfig.ENGINE_X_ASR) {
             if (xAsr.isInitialized() && xAsr.value.isLoaded()) xAsr.value.activeProvider else null
@@ -320,6 +394,31 @@ class VoiceImeService : InputMethodService() {
             startActivity(intent)
             return
         }
+
+        if (isDualEngineActive()) {
+            val needX = !xAsr.value.isLoaded()
+            val needQ = !qwen3Asr.value.isLoaded() || qwen3NeedsReload()
+            if (needX || needQ) {
+                setState(State.LOADING)
+                scope.launch {
+                    val (xOk, qOk) = withContext(Dispatchers.IO) {
+                        val x = if (needX) xAsr.value.load().success else true
+                        val q = if (needQ) qwen3Asr.value.load(buildHotwords()).success else true
+                        x to q
+                    }
+                    if (xOk && qOk) {
+                        startDualEngineRecording()
+                    } else {
+                        setState(State.IDLE)
+                        showToast("雙模型載入失敗，請檢查設定")
+                    }
+                }
+                return
+            }
+            startDualEngineRecording()
+            return
+        }
+
         val engine = ModelConfig.selectedEngine(this)
         if (engine == ModelConfig.ENGINE_X_ASR) {
             if (!xAsr.value.isLoaded()) {
@@ -379,6 +478,121 @@ class VoiceImeService : InputMethodService() {
                 setState(State.IDLE)
                 showToast("未偵測到語音，請再試一次")
             }
+        }
+    }
+
+    private fun startDualEngineRecording() {
+        val stream = xAsr.value.createStream() ?: run {
+            showToast("無法建立 X-ASR 串流")
+            return
+        }
+        activeStream = stream
+
+        isRecording = true
+        closeCandidatePanel()
+        hideSuggestions()
+        setState(State.RECORDING)
+
+        showInterimArea()
+        updateInterimText("聆聽中…", isPlaceholder = true)
+
+        val audioBuffer = mutableListOf<FloatArray>()
+        var accumulatedXAsr = ""
+        var lastStreamingText = ""
+
+        recordingJob = scope.launch {
+            val stopReason = withContext(Dispatchers.IO) {
+                recorder.recordStreaming(
+                    silenceSeconds = ModelConfig.vadSilenceSeconds(this@VoiceImeService),
+                    onChunk = { chunk ->
+                        audioBuffer.add(chunk.copyOf())
+                        xAsr.value.acceptWaveform(stream, chunk)
+                        while (xAsr.value.isReady(stream)) {
+                            xAsr.value.decode(stream)
+                        }
+                        val partial = xAsr.value.getResult(stream)
+                        val combined = accumulatedXAsr + partial
+                        if (combined.isNotBlank() && combined != lastStreamingText) {
+                            lastStreamingText = combined
+                            Handler(Looper.getMainLooper()).post {
+                                if (isRecording) {
+                                    updateInterimText(combined, isPlaceholder = false)
+                                }
+                            }
+                        }
+                        if (xAsr.value.isEndpoint(stream)) {
+                            if (partial.isNotBlank()) accumulatedXAsr += partial
+                            xAsr.value.reset(stream)
+                        }
+                    },
+                    onRmsUpdate = { rms -> updateRmsBar(rms) }
+                )
+            }
+
+            isRecording = false
+            activeStream = null
+
+            runCatching { xAsr.value.inputFinished(stream) }
+            runCatching {
+                while (xAsr.value.isReady(stream)) {
+                    xAsr.value.decode(stream)
+                }
+            }
+            val finalPartial = xAsr.value.getResult(stream).trim()
+            val totalXAsrText = (accumulatedXAsr + finalPartial).trim()
+            if (totalXAsrText.isNotEmpty()) {
+                lastStreamingText = totalXAsrText
+                Handler(Looper.getMainLooper()).post {
+                    updateInterimText(totalXAsrText, isPlaceholder = false)
+                }
+            }
+            runCatching { stream.release() }
+
+            if (stopReason == AudioRecorder.StopReason.INITIAL_TIMEOUT) {
+                hideInterimArea()
+                setState(State.IDLE)
+                showToast("未偵測到語音，請再試一次")
+                return@launch
+            }
+
+            setState(State.PROCESSING)
+            setInterimStatus("Qwen3 轉譯中…")
+
+            val totalSamples = audioBuffer.sumOf { it.size }
+            if (totalSamples == 0) {
+                hideInterimArea()
+                setState(State.IDLE)
+                showToast("未偵測到語音，請再試一次")
+                return@launch
+            }
+
+            val combinedAudio = FloatArray(totalSamples)
+            var offset = 0
+            for (chunk in audioBuffer) {
+                System.arraycopy(chunk, 0, combinedAudio, offset, chunk.size)
+                offset += chunk.size
+            }
+
+            var finalCommitText = ""
+            try {
+                val raw = withContext(Dispatchers.Default) {
+                    qwen3Asr.value.transcribe(combinedAudio)
+                }
+                finalCommitText = if (raw.isNotBlank()) postProcess(raw) else ""
+            } catch (ex: Throwable) {
+                if (ex is kotlinx.coroutines.CancellationException) {
+                    hideInterimArea()
+                    return@launch
+                }
+                Log.e(TAG, "Qwen3 batch inference failed in IME: ${ex.message}", ex)
+                if (totalXAsrText.isNotBlank()) {
+                    finalCommitText = postProcess(totalXAsrText)
+                    showToast("離線模型轉譯異常，已套用即時辨識結果")
+                }
+            }
+
+            hideInterimArea()
+            onTranscriptionDone(finalCommitText)
         }
     }
 
@@ -477,8 +691,9 @@ class VoiceImeService : InputMethodService() {
             currentInputConnection?.deleteSurroundingText(composedLength, 0)
             composedLength = 0
         }
+        hideInterimArea()
         isRecording = false
-        if (state == State.RECORDING) setState(State.IDLE)
+        if (state == State.RECORDING || state == State.PROCESSING) setState(State.IDLE)
     }
 
     private fun onTranscriptionDone(text: String) {
@@ -487,6 +702,7 @@ class VoiceImeService : InputMethodService() {
             ic?.deleteSurroundingText(composedLength, 0)
             composedLength = 0
         }
+        hideInterimArea()
         if (text.isBlank()) {
             setState(State.IDLE)
             showToast("未偵測到語音，請再試一次")
@@ -714,7 +930,7 @@ class VoiceImeService : InputMethodService() {
         UserDictionary.load(this).values.distinct().sorted().joinToString("\n")
 
     private fun postProcess(raw: String): String {
-        val converted = if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) {
+        val converted = if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR && !isDualEngineActive()) {
             ModelConfig.normalizeTaiwanVariants(raw)
         } else {
             ModelConfig.toTaiwanTraditional(raw)
@@ -781,20 +997,20 @@ class VoiceImeService : InputMethodService() {
                 progressBar.visibility = View.GONE
             }
             State.LOADING -> {
-                tvStatus.text = "正在載入模型…"
+                tvStatus.text = if (isDualEngineActive()) "正在載入雙模型…" else "正在載入模型…"
                 btnMic.alpha = 0.4f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = true
             }
             State.RECORDING -> {
-                tvStatus.text = "錄音中… 再次點擊提早停止"
+                tvStatus.text = if (isDualEngineActive()) "雙模型錄音中… 再次點擊完成" else "錄音中… 再次點擊提早停止"
                 btnMic.setImageResource(R.drawable.ic_mic_active)
                 btnMic.alpha = 1f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = false
             }
             State.PROCESSING -> {
-                tvStatus.text = "辨識中…"
+                tvStatus.text = if (isDualEngineActive()) "Qwen3 轉譯中…" else "辨識中…"
                 btnMic.alpha = 0.4f
                 progressBar.visibility = View.VISIBLE
                 progressBar.isIndeterminate = true

@@ -107,6 +107,12 @@ object ModelConfig {
         context.getSharedPreferences(PREF_DUAL_ENGINE, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_DUAL_ENGINE_TOGGLE, enabled).apply()
 
+    fun isDualEngineActive(context: Context): Boolean =
+        isXAsrReady(context) &&
+                isQwen3Ready(context) &&
+                selectedEngine(context) == ENGINE_QWEN3 &&
+                isDualEngineEnabled(context)
+
     // ── Qwen3 Punctuation Filter ──────────────────────────────────────────────
     private const val PREF_QWEN3_SETTINGS = "qwen3_settings"
     private const val KEY_FILTER_PUNCTUATION = "filter_punctuation_regex"

@@ -653,12 +653,8 @@ class FloatingBubbleService : Service() {
         }
     }
 
-    private fun isDualEngineActive(): Boolean {
-        return ModelConfig.isXAsrReady(this) &&
-                ModelConfig.isQwen3Ready(this) &&
-                ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_QWEN3 &&
-                ModelConfig.isDualEngineEnabled(this)
-    }
+    private fun isDualEngineActive(): Boolean = ModelConfig.isDualEngineActive(this)
+
 
     private fun startRecording() {
         isAborted = false
