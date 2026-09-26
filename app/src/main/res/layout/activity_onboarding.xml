@@ -29,7 +29,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="VoiceIME 新手設定"
+            android:text="VoiceIME 新手設定與功能導覽"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary" />
@@ -99,7 +99,7 @@
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="20dp" />
 
-                <!-- 隱私特色卡片 -->
+                <!-- 隱私與運作原理對比卡片 -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -119,131 +119,68 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="為什麼選擇 VoiceIME？"
+                            android:text="離線端側運算 vs. 傳統雲端輸入"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary"
                             android:layout_marginBottom="12dp" />
 
-                        <!-- 特色 1 -->
+                        <!-- 雲端比較項 -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
+                            android:orientation="vertical"
+                            android:background="@drawable/chip_bg"
+                            android:padding="12dp"
                             android:layout_marginBottom="10dp">
 
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:src="@drawable/ic_check"
-                                app:tint="@color/status_success"
-                                android:layout_marginTop="2dp"
-                                android:layout_marginEnd="10dp" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
+                            <TextView
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
+                                android:text="傳統雲端語音輸入法"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_secondary" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="完全離線運作"
-                                    android:textSize="14sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/text_primary" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="所有語音辨識模型直接在您的手機本地運算，不依賴雲端，斷網與飛航模式也能順暢打字。"
-                                    android:textSize="12sp"
-                                    android:textColor="@color/text_secondary"
-                                    android:layout_marginTop="2dp" />
-                            </LinearLayout>
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="錄音後透過網路上傳至雲端伺服器進行分析，對話內容可能被留存記錄或作為 AI 訓練；地下室、山區或飛航模式無網路時完全無法使用。"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="4dp"
+                                android:lineSpacingExtra="2dp" />
                         </LinearLayout>
 
-                        <!-- 特色 2 -->
+                        <!-- VoiceIME 比較項 -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:layout_marginBottom="10dp">
+                            android:orientation="vertical"
+                            android:background="@drawable/bg_status_badge_success"
+                            android:padding="12dp">
 
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:src="@drawable/ic_check"
-                                app:tint="@color/status_success"
-                                android:layout_marginTop="2dp"
-                                android:layout_marginEnd="10dp" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
+                            <TextView
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
+                                android:text="VoiceIME 離線語音輸入法"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/status_success_text" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="絕對隱私安全"
-                                    android:textSize="14sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/text_primary" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="您的聲音訊號與輸入內容絕不離開裝置，不收集個資、不傳送對話紀錄，保障最高等級隱私。"
-                                    android:textSize="12sp"
-                                    android:textColor="@color/text_secondary"
-                                    android:layout_marginTop="2dp" />
-                            </LinearLayout>
-                        </LinearLayout>
-
-                        <!-- 特色 3 -->
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:src="@drawable/ic_check"
-                                app:tint="@color/status_success"
-                                android:layout_marginTop="2dp"
-                                android:layout_marginEnd="10dp" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
+                            <TextView
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="繁體中文深度優化"
-                                    android:textSize="14sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/text_primary" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="專為台灣繁體中文說話習慣微調，支援自然中英混雜辨識與日常語意理解。"
-                                    android:textSize="12sp"
-                                    android:textColor="@color/text_secondary"
-                                    android:layout_marginTop="2dp" />
-                            </LinearLayout>
+                                android:text="直接在您的手機處理器（NPU/GPU/CPU）運行 ONNX 神經網路模型。語音訊號在記憶體中即時推論為文字，永不上傳外網、不留存音檔，即使開啟飛航模式依然毫秒級出字。"
+                                android:textSize="12sp"
+                                android:textColor="@color/status_success_text"
+                                android:layout_marginTop="4dp"
+                                android:lineSpacingExtra="2dp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 核心權限卡片 -->
+                <!-- 核心麥克風權限卡片 -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/card_onboarding_mic"
                     android:layout_width="match_parent"
@@ -252,7 +189,8 @@
                     app:cardElevation="0dp"
                     app:strokeColor="@color/surface_card_stroke"
                     app:strokeWidth="1dp"
-                    app:cardBackgroundColor="@color/surface_card">
+                    app:cardBackgroundColor="@color/surface_card"
+                    android:layout_marginBottom="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -298,6 +236,16 @@
                             </LinearLayout>
                         </LinearLayout>
 
+                        <!-- 權限詳細透明說明 -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="權限使用說明與安全承諾：\n• 何時啟動：僅在您主動點擊鍵盤麥克風或桌面懸浮球時開啟。\n• 何時停止：說完一句話停頓結束或手動停止時，麥克風硬體立即釋放。\n• 絕不常駐背景監聽，不存取任何電話通話內容。"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="12dp"
+                            android:lineSpacingExtra="3dp" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btn_onboarding_grant_mic"
                             style="@style/Widget.Material3.Button"
@@ -332,11 +280,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="VoiceIME 提供兩種不同的輸入模式，請依習慣點選，後續將為你引導對應的設置："
+                    android:text="VoiceIME 支援兩種截然不同的輸入方式。請選擇最貼近您使用習慣的模式，後續步驟將只為您導覽對應需要的設置，絕不強迫開啟無關權限："
                     android:textSize="14sp"
                     android:textColor="@color/text_secondary"
                     android:layout_marginTop="6dp"
-                    android:layout_marginBottom="18dp" />
+                    android:layout_marginBottom="18dp"
+                    android:lineSpacingExtra="2dp" />
 
                 <!-- 模式 A：桌面懸浮球 -->
                 <com.google.android.material.card.MaterialCardView
@@ -350,7 +299,7 @@
                     app:cardBackgroundColor="@color/surface_card"
                     android:clickable="true"
                     android:focusable="true"
-                    android:layout_marginBottom="14dp">
+                    android:layout_marginBottom="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -417,10 +366,38 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="保留你最習慣的輸入法（Gboard、注音、倉頡等），在螢幕邊緣常駐一個小巧的麥克風泡泡，點擊即可對任何 App 說話並自動填入文字。"
+                            android:text="保留你習慣的原鍵盤（如 Gboard、注音、倉頡等），在螢幕邊緣常駐一個小巧麥克風泡泡，點擊即可對任何 App 說話並自動將文字填入輸入框。"
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="6dp" />
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="2dp" />
+
+                        <!-- 充足空間：詳細情境與特性 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:background="@drawable/chip_bg"
+                            android:padding="10dp"
+                            android:layout_marginTop="10dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="日常使用情境："
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="在 LINE、Instagram 或網頁搜尋打字時，無需切換鍵盤，按一下螢幕邊緣的語音球說話，說完文字自動填入對話框，依然可以使用原本鍵盤的貼圖與表情符號。"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="2dp"
+                                android:lineSpacingExtra="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -436,7 +413,7 @@
                     app:cardBackgroundColor="@color/surface_card"
                     android:clickable="true"
                     android:focusable="true"
-                    android:layout_marginBottom="14dp">
+                    android:layout_marginBottom="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -503,10 +480,38 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="在打字時直接切換為 VoiceIME 鍵盤，享有全螢幕大麥克風錄音鍵、即時波形反饋、手勢游標移動與自訂詞彙介面。"
+                            android:text="在打字時直接切換為 VoiceIME 鍵盤，享有全螢幕超大麥克風錄音鍵、即時波形反饋、手勢游標移動與專屬詞彙庫修正介面。"
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="6dp" />
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="2dp" />
+
+                        <!-- 充足空間：詳細情境與特性 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:background="@drawable/chip_bg"
+                            android:padding="10dp"
+                            android:layout_marginTop="10dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="日常使用情境："
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="適合大量長篇文字聽寫、不喜歡螢幕邊緣有浮動圖示、或需要超大麥克風按鈕以防手滑誤觸的使用者。亦可透過鍵盤右下角的小圖示隨時在多個輸入法間快速切換。"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="2dp"
+                                android:lineSpacingExtra="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -574,10 +579,11 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="同時啟用桌面懸浮球與系統鍵盤，在需要快速傳訊息時用懸浮球，需要專注沉浸輸入時用鍵盤，隨心切換。"
+                            android:text="同時啟用桌面懸浮球與系統鍵盤。在社群傳訊時用懸浮球快速回話，在專注文稿撰寫時切換至專屬大鍵盤，隨心所欲暢快輸入。"
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="6dp" />
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="2dp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
@@ -603,11 +609,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="請依照您選取的模式完成以下設定，每一項皆有專屬說明以防卡住："
+                    android:text="根據您在步驟 2 的選擇，以下是啟用該功能所需的核心設定。本頁已為您列出可能遇到的系統提示與排除方式："
                     android:textSize="14sp"
                     android:textColor="@color/text_secondary"
                     android:layout_marginTop="6dp"
-                    android:layout_marginBottom="18dp" />
+                    android:layout_marginBottom="18dp"
+                    android:lineSpacingExtra="2dp" />
 
                 <!-- 區塊 A：系統鍵盤設置項目 -->
                 <LinearLayout
@@ -654,10 +661,19 @@
                                 android:id="@+id/tv_onboarding_ime_enable_status"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="請在系統虛擬鍵盤清單中將 VoiceIME 開啟"
+                                android:text="請在系統「虛擬鍵盤」列表中勾選 VoiceIME"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="為什麼需要此步驟？\nAndroid 系統基於安全規範，任何新安裝的輸入法必須由使用者在系統設定中手動開啟開關，系統才會允許載入該鍵盤服務。"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="8dp"
+                                android:lineSpacingExtra="2dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_onboarding_enable_ime"
@@ -704,6 +720,15 @@
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="使用小撇步：\n若您平時只想偶爾使用，無須強制設為預設輸入法。您只需在平時打字時點擊畫面右下角的鍵盤圖示，即可隨時在 VoiceIME 與原有輸入法之間自由切換。"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="8dp"
+                                android:lineSpacingExtra="2dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_onboarding_switch_ime"
@@ -759,10 +784,11 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="這是 Android 系統對所有第三方輸入法一視同仁顯示的固定安全警告。VoiceIME 所有語音模型皆在本機離線執行，甚至無需網路即可辨識，絕對不會收集或上傳您的任何密碼與個人隱私，請安心啟用。"
+                                    android:text="這是 Android 原生系統對所有第三方輸入法一視同仁顯示的固定安全警告（自 Android 1.0 沿用至今）。因為系統無法預先得知各家輸入法是否有連網上傳伺服器，所以採最高安全免責提示。\n\nVoiceIME 的語音模型全部在手機本機記憶體中執行，不傳送任何網路封包，絕不記錄密碼或收集個資，請安心開啟。"
                                     android:textSize="12sp"
                                     android:textColor="@color/status_warning_text"
-                                    android:layout_marginTop="4dp" />
+                                    android:layout_marginTop="4dp"
+                                    android:lineSpacingExtra="2dp" />
                             </LinearLayout>
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
@@ -804,7 +830,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="1. 顯示在其他應用程式上層（懸浮窗）"
+                                android:text="1. 顯示在其他應用程式上層（懸浮窗權限）"
                                 android:textSize="15sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
@@ -817,6 +843,15 @@
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="功能解析：\n允許語音泡泡懸浮於所有 App 上方，可自由拖曳、自動吸附於螢幕兩側。點擊前往後，請在系統「顯示在上層」清單中找到「VoiceIME」並將開關開啟。"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="8dp"
+                                android:lineSpacingExtra="2dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_onboarding_grant_overlay"
@@ -863,6 +898,15 @@
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:layout_marginTop="2dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="為什麼懸浮球需要無障礙服務？\n因為懸浮球不是輸入法鍵盤，無法直接透過鍵盤介面打字。透過 Android 官方標準的無障礙服務，能在辨識出文字的第一時間，精準找到目前焦點的輸入框並自動填入文字，省去手動複製貼上的繁瑣步驟。"
+                                android:textSize="11sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="8dp"
+                                android:lineSpacingExtra="2dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_onboarding_grant_accessibility"
@@ -919,15 +963,16 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Android 13 以上系統預設會將側載安裝之應用程式的無障礙開關鎖定（反灰提示「受限制的設定」）。請依序執行以下 4 步即可解鎖："
+                                android:text="原因說明：\nAndroid 13 以上系統為了防範未知惡意軟體，針對手動下載安裝之應用程式，預設會將無障礙開關反灰鎖定，並顯示「受限制的設定：為了您的安全，此設定目前無法使用」。\n\n只需依序執行以下 4 步即可輕鬆解除："
                                 android:textSize="12sp"
                                 android:textColor="@color/text_primary"
-                                android:layout_marginTop="6dp" />
+                                android:layout_marginTop="6dp"
+                                android:lineSpacingExtra="2dp" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="1. 點擊下方快捷按鈕前往「應用程式資訊」。\n2. 點擊畫面右上角的三點選單「...」。\n3. 點選「允許受限制的設定」並輸入手機解鎖密碼。\n4. 再次回到無障礙設定，開關即可正常點擊開啟！"
+                                android:text="第 1 步：點擊下方快捷按鈕前往「應用程式資訊」。\n第 2 步：在該頁面右上角找到三個垂直點的選單「...」。\n第 3 步：點選「允許受限制的設定」，並透過手機指紋或密碼驗證解鎖。\n第 4 步：重新回到無障礙設定清單，VoiceIME 開關即可正常開啟！"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
                                 android:layout_marginTop="6dp"
@@ -960,7 +1005,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="選擇語音辨識模型"
+                    android:text="選擇離線語音辨識模型"
                     android:textSize="22sp"
                     android:textStyle="bold"
                     android:textColor="@color/text_primary" />
@@ -968,11 +1013,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="模型僅需下載一次即可永久離線使用。建議至少下載其中一個，即可開始輸入："
+                    android:text="VoiceIME 採用最新的開源端側深度學習 AI 架構，所有模型下載後永久保存在本機，終身免費且離線運行。建議至少下載其中一個模型即可開始輸入："
                     android:textSize="14sp"
                     android:textColor="@color/text_secondary"
                     android:layout_marginTop="6dp"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp"
+                    android:lineSpacingExtra="2dp" />
 
                 <!-- X-ASR 模型卡片 -->
                 <com.google.android.material.card.MaterialCardView
@@ -1000,7 +1046,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="日常聊天推薦 · 約 170 MB"
+                                android:text="日常聊天首選 · 約 170 MB"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/md_theme_light_onPrimaryContainer"
@@ -1028,7 +1074,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="X-ASR 即時串流模型"
+                            android:text="X-ASR 即時串流模型（邊講邊出字）"
                             android:textSize="17sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary"
@@ -1037,10 +1083,11 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="邊說話邊即時出字，毫無延遲感。專為台灣繁體中文說話習慣微調，記憶體與電量消耗極低，適合快速回話。"
-                            android:textSize="13sp"
+                            android:text="• 原理架構：75M 輕量串流換能器（Streaming Transducer）。\n• 使用感受：邊說話邊即時出字，每講一個字畫面上就立刻跳出一個字，平均延遲小於 100ms，毫無等待感。\n• 資源消耗：佔用極少記憶體，舊款或低階手機皆能流暢運行不發燙。\n• 適合情境：通訊軟體即時聊天、簡短文字回話、快速搜尋。"
+                            android:textSize="12sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="4dp" />
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="3dp" />
 
                         <!-- 下載進度條與狀態 -->
                         <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -1127,7 +1174,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Qwen3-ASR 高精度模型"
+                            android:text="Qwen3-ASR 高精度模型（整句深度辨識）"
                             android:textSize="17sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary"
@@ -1136,10 +1183,11 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="整句深度推論，辨識準確率極高。支援中英混雜說話、智慧斷句自動補齊標點符號，並支援專業詞彙自定義庫。"
-                            android:textSize="13sp"
+                            android:text="• 原理架構：0.6B 強大參數量的全域注意力編解碼架構。\n• 使用感受：整句話說完後進行語意理解與校正，準確率最高。\n• 強大功能：\n  1. 中英文混雜精準識別（如 App、Meeting、Schedule 零失誤）。\n  2. 自動智慧斷句與補齊標點符號。\n  3. 支援自定義專業詞庫（提升人名、公司名稱準確率）。\n• 適合情境：工作郵件、會議長文聽寫、專業報告錄音。"
+                            android:textSize="12sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="4dp" />
+                            android:layout_marginTop="6dp"
+                            android:lineSpacingExtra="3dp" />
 
                         <!-- 下載進度條與狀態 -->
                         <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -1196,14 +1244,29 @@
                             android:layout_marginTop="1dp"
                             android:layout_marginEnd="10dp" />
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="小提醒：若同時下載兩個模型，日後可在設定中開啟「雙引擎模式」，同時享受 X-ASR 的即時出字與 Qwen3 的精準校訂！下載可在背景執行，可隨時點擊下一步。"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_secondary"
-                            android:lineSpacingExtra="2dp" />
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="想要雙引擎極致體驗？"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="若將兩個模型皆下載，在設定中開啟「雙引擎模式」，就能兼具 X-ASR 的邊講邊出字即時預覽，以及 Qwen3 的講完終極精確校正！\n\n下載過程由 Android 前台服務在背景下載，即使鎖定螢幕或切換畫面也不會中斷，您可以隨時點擊下一步繼續導覽。"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"
+                                android:layout_marginTop="4dp"
+                                android:lineSpacingExtra="2dp" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
@@ -1229,7 +1292,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="微調你的語音節奏，並在下方輸入框立即測試語音輸入效果："
+                    android:text="根據您的說話節奏微調參數，並在下方輸入框直接體驗語音打字："
                     android:textSize="14sp"
                     android:textColor="@color/text_secondary"
                     android:layout_marginTop="6dp"
@@ -1255,7 +1318,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="說話停頓斷句時間"
+                            android:text="說話停頓斷句時間 (VAD 靜音偵測)"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
@@ -1263,11 +1326,12 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="說完一句話後，安靜幾秒會判定說話結束並輸出文字："
+                            android:text="什麼是 VAD？\n系統透過語音活動偵測（VAD）判定何時結束錄音。當您說完話後，系統安靜幾秒即視為句子結束並輸出文字，無須每次手動點擊按鈕停止。"
                             android:textSize="12sp"
                             android:textColor="@color/text_secondary"
-                            android:layout_marginTop="2dp"
-                            android:layout_marginBottom="10dp" />
+                            android:layout_marginTop="4dp"
+                            android:layout_marginBottom="12dp"
+                            android:lineSpacingExtra="2dp" />
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -1278,34 +1342,43 @@
                                 android:id="@+id/btn_vad_quick"
                                 style="@style/Widget.Material3.Button.OutlinedButton"
                                 android:layout_width="0dp"
-                                android:layout_height="40dp"
+                                android:layout_height="44dp"
                                 android:layout_weight="1"
                                 android:text="敏捷 0.8s"
                                 android:textSize="12sp"
-                                app:cornerRadius="20dp"
+                                app:cornerRadius="22dp"
                                 android:layout_marginEnd="6dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_vad_normal"
                                 style="@style/Widget.Material3.Button"
                                 android:layout_width="0dp"
-                                android:layout_height="40dp"
+                                android:layout_height="44dp"
                                 android:layout_weight="1"
                                 android:text="標準 1.5s"
                                 android:textSize="12sp"
-                                app:cornerRadius="20dp"
+                                app:cornerRadius="22dp"
                                 android:layout_marginEnd="6dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btn_vad_relaxed"
                                 style="@style/Widget.Material3.Button.OutlinedButton"
                                 android:layout_width="0dp"
-                                android:layout_height="40dp"
+                                android:layout_height="44dp"
                                 android:layout_weight="1"
                                 android:text="從容 2.5s"
                                 android:textSize="12sp"
-                                app:cornerRadius="20dp" />
+                                app:cornerRadius="22dp" />
                         </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="• 敏捷（0.8 秒）：說完話立刻輸出，適合快節奏傳訊。\n• 標準（1.5 秒，推薦）：容許短暫思考換氣，適合多數人。\n• 從容（2.5 秒）：容許長停頓，適合長篇思考或語速較慢者。"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_tertiary"
+                            android:layout_marginTop="8dp"
+                            android:lineSpacingExtra="2dp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -1344,10 +1417,11 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="開啟後將自動去除逗號、句號等全形標點"
+                                android:text="關閉時：保留逗號句號（如：今天天氣好，出去玩。）\n開啟時：自動去除標點（如：今天天氣好 出去玩）適合搜尋或指令"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary"
-                                android:layout_marginTop="2dp" />
+                                android:layout_marginTop="2dp"
+                                android:lineSpacingExtra="2dp" />
                         </LinearLayout>
 
                         <com.google.android.material.materialswitch.MaterialSwitch
@@ -1385,7 +1459,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="點擊下方輸入框，按下鍵盤上的麥克風（或畫面邊緣的懸浮球）說一句話試試看："
+                            android:text="點擊下方輸入框，按下鍵盤上的麥克風按鈕（或螢幕邊緣的懸浮球）說一句話試試看："
                             android:textSize="12sp"
                             android:textColor="@color/text_secondary"
                             android:layout_marginTop="2dp"
@@ -1402,6 +1476,16 @@
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_tertiary"
                             android:textSize="14sp" />
+
+                        <!-- 語音輸入小技巧說明 -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="語音輸入小撇步：\n• 說話時麥克風距離嘴部約 10~15 公分效果最佳。\n• 以正常語速自然說話，無須刻意放慢速度或刻意字字停頓。\n• 說完話後自然保持安靜，VAD 即會自動輸出文字。"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="10dp"
+                            android:lineSpacingExtra="2dp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
