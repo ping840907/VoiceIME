@@ -1,152 +1,797 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background">
+    android:background="@color/background"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="40dp">
 
-        <TextView
+        <!-- ── Header Banner ─────────────────────────────────────────── -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="語音輸入法"
-            android:textSize="26sp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="20dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@mipmap/ic_launcher"
+                android:contentDescription="@string/app_name"
+                android:layout_marginEnd="14dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="VoiceIME 語音輸入法"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="雙模型 ASR 架構 · 本機離線高隱私"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_overall_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="檢查中"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/status_warning_text"
+                android:background="@drawable/bg_status_badge_warning"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- SECTION 1: 系統權限                                           -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="系統權限"
+            android:textSize="12sp"
             android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="離線繁體中文語音輸入"
-            android:textSize="14sp"
             android:textColor="@color/text_secondary"
-            android:layout_marginBottom="32dp" />
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="8dp" />
 
-        <!-- Engine selection card -->
-        <androidx.cardview.widget.CardView
-            xmlns:app="http://schemas.android.com/apk/res-auto"
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_mic_root"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/surface_card_stroke"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/surface_card"
             android:layout_marginBottom="20dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:padding="16dp">
 
-                <TextView
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="辨識引擎"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="12dp">
 
-                <RadioGroup
-                    android:id="@+id/rg_engine"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/rb_qwen3"
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Qwen3-ASR（精準，可對齊自訂詞彙，支援停頓偵測）"
-                        android:textSize="14sp"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="8dp" />
-
-                    <RadioButton
-                        android:id="@+id/rb_xasr"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="X-ASR（快速，不自動加標點）"
-                        android:textSize="14sp"
+                        android:text="麥克風錄音權限"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
                         android:textColor="@color/text_primary" />
-                </RadioGroup>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <!-- Model status card -->
-        <androidx.cardview.widget.CardView
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/white"
-            android:layout_marginBottom="20dp">
+                    <TextView
+                        android:id="@+id/tv_mic_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="辨識語音必須的系統核心權限"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="模型狀態"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/tv_model_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_grant_mic"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:text="授予權限"
                     android:textSize="13sp"
-                    android:textColor="@color/text_secondary"
-                    android:lineSpacingMultiplier="1.4"
-                    android:layout_marginBottom="12dp" />
-
-                <Button
-                    android:id="@+id/btn_download_model"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:text="下載模型" />
-
-                <TextView
-                    android:id="@+id/tv_download_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
-                    android:layout_marginTop="8dp"
-                    android:visibility="gone" />
-
-                <ProgressBar
-                    android:id="@+id/progress_download"
-                    style="@android:style/Widget.ProgressBar.Horizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="6dp"
-                    android:max="100"
-                    android:layout_marginTop="4dp"
-                    android:visibility="gone" />
+                    app:cornerRadius="19dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-        <!-- VAD silence duration card -->
-        <androidx.cardview.widget.CardView
-            xmlns:app="http://schemas.android.com/apk/res-auto"
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- SECTION 2: 輸入方式 (並排: 鍵盤 | 懸浮泡泡)                   -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="輸入方式"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_secondary"
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/white"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
             android:layout_marginBottom="20dp">
+
+            <!-- LEFT: 語音輸入法 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_keyboard_module"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/surface_card_stroke"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="@color/surface_card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="語音輸入法"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tv_keyboard_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="未就緒"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/status_warning_text"
+                            android:background="@drawable/bg_status_badge_warning"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp" />
+                    </LinearLayout>
+
+                    <!-- Step 1: 系統啟用 -->
+                    <TextView
+                        android:id="@+id/tv_ime_enable_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="請在系統虛擬鍵盤清單中啟用"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_enable_ime"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:text="前往啟用"
+                        android:textSize="12sp"
+                        app:cornerRadius="17dp"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_marginBottom="8dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp" />
+
+                    <!-- Step 2: 切換預設 -->
+                    <TextView
+                        android:id="@+id/tv_ime_switch_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="選取 VoiceIME 為目前鍵盤"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_switch_ime"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:text="切換輸入法"
+                        android:textSize="12sp"
+                        app:cornerRadius="17dp"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- RIGHT: 懸浮語音泡泡 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_bubble_module"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/surface_card_stroke"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="@color/surface_card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="懸浮語音泡泡"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tv_bubble_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="未就緒"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/status_warning_text"
+                            android:background="@drawable/bg_status_badge_warning"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp" />
+                    </LinearLayout>
+
+                    <!-- Step 1: 懸浮視窗權限 -->
+                    <TextView
+                        android:id="@+id/tv_overlay_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="允許顯示在其他應用程式上層"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_grant_overlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:text="前往授權"
+                        android:textSize="12sp"
+                        app:cornerRadius="17dp"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_marginBottom="8dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp" />
+
+                    <!-- Step 2: 無障礙自動貼上 -->
+                    <TextView
+                        android:id="@+id/tv_accessibility_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="將辨識文字直接填入焦點欄位"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_grant_accessibility"
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:text="前往開啟"
+                        android:textSize="12sp"
+                        app:cornerRadius="17dp"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_marginBottom="4dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp" />
+
+                    <TextView
+                        android:id="@+id/tv_restricted_settings_help"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="無法開啟無障礙服務？點此查看指引"
+                        android:textSize="10sp"
+                        android:textColor="@color/md_theme_light_primary"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:visibility="gone"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- SECTION 3: 辨識引擎 (並排: X-ASR | Qwen3-ASR)                -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="辨識引擎"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_secondary"
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+
+            <!-- X-ASR CARD -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_x_asr"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/surface_card_stroke"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="@color/surface_card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="X-ASR 極速串流引擎"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/tv_xasr_description"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="隨說隨出字、低延遲即時辨識、原生繁中詞庫"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="4dp" />
+
+                    <TextView
+                        android:id="@+id/tv_xasr_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="檢查中…"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_tertiary"
+                        android:layout_marginTop="8dp" />
+
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                        android:id="@+id/progress_download_xasr"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:trackCornerRadius="4dp"
+                        app:trackThickness="6dp"
+                        app:indicatorColor="@color/md_theme_light_primary"
+                        app:trackColor="@color/background"
+                        android:layout_marginTop="6dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/tv_download_status_xasr"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/md_theme_light_primary"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone" />
+
+                    <!-- Action buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="10dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_select_xasr"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_weight="1"
+                            android:text="選取引擎"
+                            android:textSize="11sp"
+                            app:cornerRadius="17dp"
+                            android:layout_marginEnd="4dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_download_xasr"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_weight="1"
+                            android:text="下載模型"
+                            android:textSize="11sp"
+                            app:cornerRadius="17dp"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- QWEN3-ASR CARD -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_qwen3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/surface_card_stroke"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="@color/surface_card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Qwen3-ASR 高精度離線引擎"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/tv_qwen3_description"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="標點完整、語意通順、專為精準批次轉譯打造"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="4dp" />
+
+                    <TextView
+                        android:id="@+id/tv_qwen3_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="檢查中…"
+                        android:textSize="11sp"
+                        android:textColor="@color/text_tertiary"
+                        android:layout_marginTop="8dp" />
+
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                        android:id="@+id/progress_download_qwen3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:trackCornerRadius="4dp"
+                        app:trackThickness="6dp"
+                        app:indicatorColor="@color/md_theme_light_primary"
+                        app:trackColor="@color/background"
+                        android:layout_marginTop="6dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/tv_download_status_qwen3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="10sp"
+                        android:textColor="@color/md_theme_light_primary"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone" />
+
+                    <!-- Action buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="10dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_select_qwen3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_weight="1"
+                            android:text="選取引擎"
+                            android:textSize="11sp"
+                            app:cornerRadius="17dp"
+                            android:layout_marginEnd="4dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_download_qwen3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_weight="1"
+                            android:text="下載模型"
+                            android:textSize="11sp"
+                            app:cornerRadius="17dp"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp" />
+                    </LinearLayout>
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/surface_card_stroke"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Dedicated setting 1: Punctuation Filter -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="過濾中文標點符號"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switch_filter_punctuation"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:scaleX="0.8"
+                            android:scaleY="0.8" />
+                    </LinearLayout>
+
+                    <!-- Dedicated setting 2: VAD Silence Timeout -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="停頓斷句緩衝"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary" />
+
+                        <TextView
+                            android:id="@+id/tv_vad_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1.0 秒"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/md_theme_light_primary" />
+                    </LinearLayout>
+
+                    <SeekBar
+                        android:id="@+id/sb_vad_silence"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:max="15"
+                        android:progress="6"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- DUAL ENGINE MODE CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_dual_engine"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/surface_card_stroke"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/surface_card"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="20dp">
+
+            <LinearLayout
+                android:id="@+id/layout_dual_engine_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="雙引擎模式"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/tv_dual_engine_desc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="說話時即時預覽文字，結束後自動精準潤飾輸入"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switch_dual_engine"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clickable="false"
+                    android:focusable="false" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- SECTION 4: 詞彙管理                                           -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="詞彙管理"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_secondary"
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_vocabulary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/surface_card_stroke"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/surface_card"
+            android:layout_marginBottom="20dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="自訂專屬詞彙"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/tv_vocab_desc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="加入常用人名、專有名詞或修正字（長按鍵盤詞彙鍵亦可進入）"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_open_dict"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="管理詞彙"
+                    android:textSize="13sp"
+                    app:cornerRadius="20dp"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <!-- SECTION 5: 使用說明                                           -->
+        <!-- ══════════════════════════════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="使用說明"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_secondary"
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/surface_card_stroke"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/surface_card">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -157,122 +802,21 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="停頓偵測靈敏度"
-                    android:textSize="16sp"
+                    android:text="使用小撇步"
+                    android:textSize="15sp"
                     android:textStyle="bold"
                     android:textColor="@color/text_primary"
-                    android:layout_marginBottom="4dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="說話停頓超過此秒數後自動結束錄音（僅適用於 Qwen3-ASR）"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
                     android:layout_marginBottom="8dp" />
 
                 <TextView
-                    android:id="@+id/tv_vad_value"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:gravity="center"
-                    android:layout_marginBottom="4dp" />
-
-                <SeekBar
-                    android:id="@+id/sb_vad_silence"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="25" />
+                    android:text="• 懸浮泡泡：點擊錄音，貼上後可點擊上方按鈕復原文字\n• 雙引擎模式：兼具即時顯示與精準斷句\n• 快速自訂詞彙：在鍵盤中長按「詞彙」鍵即可開啟管理"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:lineSpacingMultiplier="1.5" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- Dictionary shortcut -->
-        <Button
-            android:id="@+id/btn_open_dict"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="管理自訂詞彙"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Mic permission -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="步驟一：授予麥克風權限"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:id="@+id/tv_mic_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="13sp"
-            android:textColor="@color/text_secondary"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btn_grant_mic"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="授予麥克風權限"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Step 2 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="步驟二：啟用輸入法"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btn_enable_ime"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="前往系統設定 → 啟用語音輸入法"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Step 3 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="步驟三：切換輸入法"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/btn_switch_ime"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="切換至語音輸入法"
-            android:layout_marginBottom="20dp" />
-
-        <!-- Usage hint -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="使用方式"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="1. 在任何輸入框點選，叫出鍵盤\n2. 點擊麥克風按鈕開始說話\n3. 靜音後自動識別，或再次點擊停止\n4. 識別結果顯示於頂部預覽欄\n5. 點擊「確認插入」將文字輸入到應用"
-            android:textSize="14sp"
-            android:textColor="@color/text_secondary"
-            android:lineSpacingMultiplier="1.6" />
+        </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
-</ScrollView>
+</androidx.core.widget.NestedScrollView>

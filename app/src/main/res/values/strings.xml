@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">VoiceIME</string>
     <string name="subtype_label">繁體中文語音輸入</string>
+    <string name="accessibility_service_label">VoiceIME 語音自動輸入輔助</string>
+    <string name="accessibility_service_desc">允許 VoiceIME 懸浮泡泡將辨識出的文字直接填入任何應用程式的輸入框中，無需切換目前使用的輸入法。</string>
+    <string name="bubble_service_title">VoiceIME 懸浮泡泡執行中</string>
+    <string name="bubble_service_content">點擊螢幕邊緣的語音泡泡即可隨時辨識出字</string>
+    <string name="bubble_notification_channel">懸浮語音輸入服務</string>
 </resources>

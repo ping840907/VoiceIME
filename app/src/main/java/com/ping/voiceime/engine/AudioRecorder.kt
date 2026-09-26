@@ -101,6 +101,9 @@ class AudioRecorder {
 
     @SuppressLint("MissingPermission")
     suspend fun recordStreaming(
+        silenceThreshold: Float = 0.015f,
+        silenceSeconds:   Float = 0f,
+        minSeconds:       Float = 0.5f,
         maxSeconds:       Float = ModelConfig.MAX_RECORD_SECONDS,
         onChunk:          (FloatArray) -> Unit,
         onRmsUpdate:      ((Float) -> Unit)? = null,
@@ -124,10 +127,13 @@ class AudioRecorder {
             return@withContext StopReason.ERROR
         }
 
-        val maxFrames   = (maxSeconds * SAMPLE_RATE).toInt()
-        var totalFrames = 0
-        val chunkBuffer = ShortArray(CHUNK_FRAMES)
-        var stopReason  = StopReason.TIMEOUT
+        val maxFrames     = (maxSeconds * SAMPLE_RATE).toInt()
+        val minFrames     = (minSeconds * SAMPLE_RATE).toInt()
+        val silenceFrames = (silenceSeconds * SAMPLE_RATE).toInt()
+        var totalFrames   = 0
+        var silenceCount  = 0
+        val chunkBuffer   = ShortArray(CHUNK_FRAMES)
+        var stopReason    = StopReason.TIMEOUT
 
         try {
             recorder.startRecording()
@@ -140,6 +146,14 @@ class AudioRecorder {
 
                 val rms = computeRms(chunkBuffer, read)
                 onRmsUpdate?.invoke(rms)
+
+                if (silenceSeconds > 0f) {
+                    if (rms < silenceThreshold) silenceCount += read else silenceCount = 0
+                    if (totalFrames >= minFrames && silenceCount >= silenceFrames) {
+                        stopReason = StopReason.SILENCE
+                        break
+                    }
+                }
 
                 totalFrames += read
                 if (totalFrames >= maxFrames) { stopReason = StopReason.TIMEOUT; break }

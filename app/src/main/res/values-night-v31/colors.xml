@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material You Dynamic Theme Colors - Dark Mode (Android 12+ / API 31+) -->
+
+    <!-- Material 3 Dynamic Palette -->
+    <color name="md_theme_light_primary">@android:color/system_accent1_200</color>
+    <color name="md_theme_light_onPrimary">@android:color/system_accent1_800</color>
+    <color name="md_theme_light_primaryContainer">@android:color/system_accent1_700</color>
+    <color name="md_theme_light_onPrimaryContainer">@android:color/system_accent1_100</color>
+    <color name="md_theme_light_secondary">@android:color/system_accent2_200</color>
+    <color name="md_theme_light_onSecondary">@android:color/system_accent2_800</color>
+    <color name="md_theme_light_secondaryContainer">@android:color/system_accent2_700</color>
+    <color name="md_theme_light_onSecondaryContainer">@android:color/system_accent2_100</color>
+    <color name="md_theme_light_surface">@android:color/system_neutral1_900</color>
+    <color name="md_theme_light_onSurface">@android:color/system_neutral1_100</color>
+    <color name="md_theme_light_surfaceVariant">@android:color/system_neutral2_800</color>
+    <color name="md_theme_light_onSurfaceVariant">@android:color/system_neutral2_200</color>
+    <color name="md_theme_light_outline">@android:color/system_neutral2_500</color>
+    <color name="md_theme_light_outlineVariant">@android:color/system_neutral2_700</color>
+
+    <!-- General Surface & Text -->
+    <color name="white">#FFFFFF</color>
+    <color name="background">@android:color/system_neutral1_900</color>
+    <color name="surface_card">@android:color/system_neutral1_800</color>
+    <color name="surface_card_stroke">@android:color/system_neutral2_700</color>
+    <color name="text_primary">@android:color/system_neutral1_50</color>
+    <color name="text_secondary">@android:color/system_neutral2_200</color>
+    <color name="text_tertiary">@android:color/system_neutral2_400</color>
+
+    <!-- Semantic / Status Colors -->
+    <color name="status_success">#34D399</color>
+    <color name="status_success_container">#064E3B</color>
+    <color name="status_success_text">#6EE7B7</color>
+    <color name="status_warning">#FBBF24</color>
+    <color name="status_warning_container">#78350F</color>
+    <color name="status_warning_text">#FDE68A</color>
+    <color name="tag_recommend">@android:color/system_accent3_300</color>
+    <color name="tag_recommend_container">@android:color/system_accent3_800</color>
+
+    <!-- IME Keyboard Material You Theme Colors -->
+    <color name="ime_bg">@android:color/system_neutral1_900</color>
+    <color name="ime_surface">@android:color/system_neutral2_800</color>
+    <color name="ime_key_bg">@android:color/system_neutral1_800</color>
+    <color name="ime_key_bg_pressed">@android:color/system_neutral2_700</color>
+    <color name="ime_key_icon">@android:color/system_accent1_100</color>
+    <color name="ime_key_text">@android:color/system_neutral1_50</color>
+
+    <!-- Primary Accent Keys (Mic button, Enter button, active indicators) -->
+    <color name="ime_accent">@android:color/system_accent1_300</color>
+    <color name="ime_accent_pressed">@android:color/system_accent1_500</color>
+    <color name="ime_accent_glow">@android:color/system_accent1_800</color>
+    <color name="ime_accent_text">@android:color/system_accent1_900</color>
+    <color name="ime_preview_bg">@android:color/system_neutral1_900</color>
+    <color name="ime_preview_text">@android:color/system_neutral1_50</color>
+    <color name="ime_status_text">@android:color/system_accent1_200</color>
+    <color name="ime_status_pill">@android:color/system_neutral2_800</color>
+
+    <!-- Floating Bubble Material You Colors -->
+    <color name="bubble_bg_start">@android:color/system_accent1_200</color>
+    <color name="bubble_bg_center">@android:color/system_accent1_400</color>
+    <color name="bubble_bg_end">@android:color/system_accent1_700</color>
+    <color name="bubble_card_bg">@android:color/system_neutral1_900</color>
+</resources>

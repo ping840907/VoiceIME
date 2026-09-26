@@ -1,18 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="white">#FFFFFF</color>
-    <color name="background">#F5F5F5</color>
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#5A5A5A</color>
+    <!-- Material 3 Light Theme Colors -->
+    <color name="md_theme_light_primary">#0284C7</color>
+    <color name="md_theme_light_onPrimary">#FFFFFF</color>
+    <color name="md_theme_light_primaryContainer">#E0F2FE</color>
+    <color name="md_theme_light_onPrimaryContainer">#0369A1</color>
+    <color name="md_theme_light_secondary">#475569</color>
+    <color name="md_theme_light_onSecondary">#FFFFFF</color>
+    <color name="md_theme_light_secondaryContainer">#F1F5F9</color>
+    <color name="md_theme_light_onSecondaryContainer">#1E293B</color>
+    <color name="md_theme_light_surface">#F8FAFC</color>
+    <color name="md_theme_light_onSurface">#0F172A</color>
+    <color name="md_theme_light_surfaceVariant">#F1F5F9</color>
+    <color name="md_theme_light_onSurfaceVariant">#64748B</color>
+    <color name="md_theme_light_outline">#CBD5E1</color>
+    <color name="md_theme_light_outlineVariant">#E2E8F0</color>
 
-    <!-- IME keyboard colors -->
-    <color name="ime_bg">#263238</color>
-    <color name="ime_key_bg">#37474F</color>
-    <color name="ime_key_icon">#ECEFF1</color>
-    <color name="ime_key_text">#ECEFF1</color>
-    <color name="ime_accent">#29B6F6</color>
+    <!-- Semantic / Status Colors -->
+    <color name="status_success">#10B981</color>
+    <color name="status_success_container">#ECFDF5</color>
+    <color name="status_success_text">#047857</color>
+    <color name="status_warning">#F59E0B</color>
+    <color name="status_warning_container">#FFFBEB</color>
+    <color name="status_warning_text">#B45309</color>
+    <color name="tag_recommend">#6366F1</color>
+    <color name="tag_recommend_container">#EEF2FF</color>
+
+    <!-- General Surface & Text -->
+    <color name="white">#FFFFFF</color>
+    <color name="background">#F8FAFC</color>
+    <color name="surface_card">#FFFFFF</color>
+    <color name="surface_card_stroke">#E2E8F0</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#475569</color>
+    <color name="text_tertiary">#94A3B8</color>
+
+    <!-- IME Keyboard Colors - Deep modern graphite & slate -->
+    <color name="ime_bg">#13171C</color>
+    <color name="ime_surface">#1E262F</color>
+    <color name="ime_key_bg">#25303B</color>
+    <color name="ime_key_bg_pressed">#374656</color>
+    <color name="ime_key_icon">#E2E8F0</color>
+    <color name="ime_key_text">#F8FAFC</color>
+    <color name="ime_accent">#0EA5E9</color>
+    <color name="ime_accent_pressed">#0284C7</color>
+    <color name="ime_accent_glow">#330EA5E9</color>
     <color name="ime_accent_text">#FFFFFF</color>
-    <color name="ime_preview_bg">#1C272C</color>
-    <color name="ime_preview_text">#FFFFFF</color>
-    <color name="ime_status_text">#B0BEC5</color>
+    <color name="ime_preview_bg">#0C1014</color>
+    <color name="ime_preview_text">#F8FAFC</color>
+    <color name="ime_status_text">#94A3B8</color>
+    <color name="ime_status_pill">#1E262F</color>
+
+    <!-- Floating Bubble Colors -->
+    <color name="bubble_bg_start">#E8F4FF</color>
+    <color name="bubble_bg_center">#991565C0</color>
+    <color name="bubble_bg_end">#FF0D47A1</color>
+    <color name="bubble_card_bg">#E61E232A</color>
 </resources>
+

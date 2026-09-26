@@ -54,6 +54,7 @@ dependencies {
     // tar.bz2 extraction for downloaded Qwen3-ASR model archive
     implementation 'org.apache.commons:commons-compress:1.26.0'
 
+    testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.5.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }

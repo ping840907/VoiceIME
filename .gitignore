@@ -21,3 +21,7 @@ app/src/main/assets/models/
 app/libs/*.aar
 app/libs/*.jar
 
+# APK / Release builds
+*.apk
+app/release/
+

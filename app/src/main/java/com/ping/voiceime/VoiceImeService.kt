@@ -167,6 +167,13 @@ class VoiceImeService : InputMethodService() {
         btnEnter.setOnClickListener { sendEnter() }
         btnSpace.setOnClickListener { commitText(" ") }
         btnDictInsert.setOnClickListener { showCandidatePanel() }
+        btnDictInsert.setOnLongClickListener {
+            val intent = Intent(this, DictSettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        }
         btnSettings.setOnClickListener { openMainSettings() }
         btnSettings.setOnLongClickListener {
             val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
@@ -691,11 +698,16 @@ class VoiceImeService : InputMethodService() {
 
     private fun postProcess(raw: String): String {
         if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) return raw
-        return try {
+        val traditional = try {
             ZhConverterUtil.toTraditional(raw)
         } catch (ex: Exception) {
             Log.w(TAG, "OpenCC failed: ${ex.message}")
             raw
+        }
+        return if (ModelConfig.isFilterPunctuationEnabled(this)) {
+            ModelConfig.filterChinesePunctuation(traditional)
+        } else {
+            traditional
         }
     }
 

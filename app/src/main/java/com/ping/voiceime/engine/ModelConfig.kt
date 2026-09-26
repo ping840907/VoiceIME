@@ -79,4 +79,68 @@ object ModelConfig {
     fun setSelectedEngine(context: Context, engine: String) =
         context.getSharedPreferences(PREF_ENGINE, Context.MODE_PRIVATE)
             .edit().putString(KEY_ENGINE, engine).apply()
+
+    // ── Floating Bubble Mode ──────────────────────────────────────────────────
+    private const val PREF_BUBBLE = "bubble_settings"
+    private const val KEY_BUBBLE_ENABLED = "bubble_enabled"
+
+    fun isFloatingBubbleEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREF_BUBBLE, Context.MODE_PRIVATE)
+            .getBoolean(KEY_BUBBLE_ENABLED, false)
+
+    fun setFloatingBubbleEnabled(context: Context, enabled: Boolean) =
+        context.getSharedPreferences(PREF_BUBBLE, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_BUBBLE_ENABLED, enabled).apply()
+
+    // ── Dual Engine Mode ──────────────────────────────────────────────────────
+    private const val PREF_DUAL_ENGINE = "dual_engine_settings"
+    private const val KEY_DUAL_ENGINE_TOGGLE = "dual_engine_toggle"
+
+    fun isDualEngineEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREF_DUAL_ENGINE, Context.MODE_PRIVATE)
+            .getBoolean(KEY_DUAL_ENGINE_TOGGLE, false)
+
+    fun setDualEngineEnabled(context: Context, enabled: Boolean) =
+        context.getSharedPreferences(PREF_DUAL_ENGINE, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_DUAL_ENGINE_TOGGLE, enabled).apply()
+
+    // ── Qwen3 Punctuation Filter ──────────────────────────────────────────────
+    private const val PREF_QWEN3_SETTINGS = "qwen3_settings"
+    private const val KEY_FILTER_PUNCTUATION = "filter_punctuation_regex"
+
+    fun isFilterPunctuationEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREF_QWEN3_SETTINGS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_FILTER_PUNCTUATION, false)
+
+    fun setFilterPunctuationEnabled(context: Context, enabled: Boolean) =
+        context.getSharedPreferences(PREF_QWEN3_SETTINGS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_FILTER_PUNCTUATION, enabled).apply()
+
+    private val CHINESE_PUNCTUATION_REGEX = Regex("[，。！？、…：；「」『』—～（）《》〈〉【】〔〕]")
+
+    fun filterChinesePunctuation(text: String): String =
+        text.replace(CHINESE_PUNCTUATION_REGEX, "")
+
+    // ── Model Readiness Checks ────────────────────────────────────────────────
+    fun isXAsrReady(context: Context): Boolean {
+        val files = listOf(
+            xAsrEncoderPath(context),
+            xAsrDecoderPath(context),
+            xAsrJoinerPath(context),
+            xAsrTokensPath(context),
+        )
+        return files.all { java.io.File(it).exists() }
+    }
+
+    fun isQwen3Ready(context: Context): Boolean {
+        val files = listOf(
+            qwen3AsrConvFrontendPath(context),
+            qwen3AsrEncoderPath(context),
+            qwen3AsrDecoderPath(context),
+        )
+        return files.all { java.io.File(it).exists() } && java.io.File(qwen3AsrTokenizerDir(context)).isDirectory
+    }
+
+    fun isModelReady(context: Context, engine: String): Boolean =
+        if (engine == ENGINE_X_ASR) isXAsrReady(context) else isQwen3Ready(context)
 }

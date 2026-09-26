@@ -1,4 +1,4 @@
-package com.ping.voiceime
+﻿package com.ping.voiceime
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,36 +10,43 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.MaterialToolbar
 
 class DictSettingsActivity : AppCompatActivity() {
 
     private lateinit var recycler: RecyclerView
+    private lateinit var emptyState: View
     private lateinit var adapter: DictAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dict_settings)
 
-        supportActionBar?.title = "自定義詞彙"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        toolbar.setNavigationOnClickListener { finish() }
 
+        emptyState = findViewById(R.id.ll_empty_state)
         recycler = findViewById(R.id.rv_dict)
         recycler.layoutManager = LinearLayoutManager(this)
-        recycler.addItemDecoration(DividerItemDecoration(this, DividerItemDecoration.VERTICAL))
 
         adapter = DictAdapter(loadEntries()) { from ->
             UserDictionary.remove(this, from)
-            adapter.update(loadEntries())
+            refreshList()
         }
         recycler.adapter = adapter
+        refreshList()
 
         findViewById<View>(R.id.btn_add_entry).setOnClickListener { showAddDialog() }
     }
 
-    override fun onSupportNavigateUp(): Boolean { finish(); return true }
+    private fun refreshList() {
+        val entries = loadEntries()
+        adapter.update(entries)
+        emptyState.visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
+        recycler.visibility = if (entries.isEmpty()) View.GONE else View.VISIBLE
+    }
 
     private fun loadEntries() = UserDictionary.load(this).entries
         .sortedBy { it.key }
@@ -50,16 +57,16 @@ class DictSettingsActivity : AppCompatActivity() {
         val etTo = view.findViewById<EditText>(R.id.et_to)
 
         AlertDialog.Builder(this)
-            .setTitle("新增替換詞")
+            .setTitle("新增專屬詞彙")
             .setView(view)
             .setPositiveButton("新增") { _, _ ->
                 val to = etTo.text.toString().trim()
                 if (to.isBlank()) {
-                    Toast.makeText(this, "請輸入替換詞", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "請輸入詞彙內容", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 UserDictionary.add(this, to, to)
-                adapter.update(loadEntries())
+                refreshList()
             }
             .setNegativeButton("取消", null)
             .show()
