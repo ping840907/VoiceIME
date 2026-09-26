@@ -323,7 +323,19 @@ class VoiceImeService : InputMethodService() {
         }
         val engine = ModelConfig.selectedEngine(this)
         if (engine == ModelConfig.ENGINE_X_ASR) {
-            if (!xAsr.value.isLoaded()) { preloadModel(); return }
+            if (!xAsr.value.isLoaded()) {
+                setState(State.LOADING)
+                scope.launch {
+                    val result = xAsr.value.load()
+                    if (result.success) {
+                        startStreamingRecording()
+                    } else {
+                        setState(State.IDLE)
+                        showToast("X-ASR 模型載入失敗: ${result.error}")
+                    }
+                }
+                return
+            }
             startStreamingRecording()
         } else {
             // (Re)load if not loaded yet, or if hotwords no longer match — a no-op check
@@ -396,8 +408,9 @@ class VoiceImeService : InputMethodService() {
         var lastShown   = ""
 
         recordingJob = scope.launch {
-            withContext(Dispatchers.IO) {
+            val stopReason = withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
+                    silenceSeconds = ModelConfig.vadSilenceSeconds(this@VoiceImeService),
                     onChunk = { chunk ->
                         engine.acceptWaveform(stream, chunk)
                         while (engine.isReady(stream)) {
@@ -431,7 +444,12 @@ class VoiceImeService : InputMethodService() {
             val finalSegment = engine.getResult(stream).trim()
             runCatching { stream.release() }
 
-            onTranscriptionDone((accumulated + finalSegment).trim())
+            val fullText = if (stopReason == AudioRecorder.StopReason.INITIAL_TIMEOUT) {
+                ""
+            } else {
+                (accumulated + finalSegment).trim()
+            }
+            onTranscriptionDone(fullText)
         }
     }
 

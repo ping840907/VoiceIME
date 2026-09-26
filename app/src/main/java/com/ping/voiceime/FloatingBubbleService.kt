@@ -750,7 +750,7 @@ class FloatingBubbleService : Service() {
         lastStreamingText = ""
 
         recordingJob = scope.launch {
-            withContext(Dispatchers.IO) {
+            val stopReason = withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
                     silenceSeconds = ModelConfig.vadSilenceSeconds(this@FloatingBubbleService),
                     onChunk = { chunk ->
@@ -792,6 +792,13 @@ class FloatingBubbleService : Service() {
             runCatching { stream.release() }
 
             if (isAborted) return@launch
+
+            if (stopReason == AudioRecorder.StopReason.INITIAL_TIMEOUT) {
+                setState(State.IDLE)
+                hideXButton()
+                showPreviewText("未偵測到語音", autoHide = true)
+                return@launch
+            }
 
             // 錄音結束，預覽氣泡淡出，維持目標框純淨
             Handler(Looper.getMainLooper()).post {
@@ -899,7 +906,7 @@ class FloatingBubbleService : Service() {
         var lastShown = ""
 
         recordingJob = scope.launch {
-            withContext(Dispatchers.IO) {
+            val stopReason = withContext(Dispatchers.IO) {
                 recorder.recordStreaming(
                     silenceSeconds = ModelConfig.vadSilenceSeconds(this@FloatingBubbleService),
                     onChunk = { chunk ->
@@ -939,6 +946,14 @@ class FloatingBubbleService : Service() {
             runCatching { stream.release() }
 
             if (isAborted) return@launch
+
+            if (stopReason == AudioRecorder.StopReason.INITIAL_TIMEOUT) {
+                setState(State.IDLE)
+                hideXButton()
+                showPreviewText("未偵測到語音", autoHide = true)
+                return@launch
+            }
+
             val fullText = (accumulated + finalSegment).trim()
             onTranscriptionDone(fullText)
         }

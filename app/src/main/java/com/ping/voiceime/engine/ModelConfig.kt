@@ -34,12 +34,14 @@ object ModelConfig {
     val ASR_PROVIDER_PRIORITY = listOf("nnapi", "cpu")
 
     // Recording / VAD
-    const val MAX_RECORD_SECONDS    = 15f
-    const val MIN_RECORD_SECONDS    = 0.4f
-    const val VAD_SILENCE_SECONDS   = 1.5f
-    const val VAD_SILENCE_THRESHOLD = 0.012f
-    const val VAD_SILENCE_MIN       = 0.5f
-    const val VAD_SILENCE_MAX       = 3.0f
+    const val MAX_RECORD_SECONDS          = 15f
+    const val MIN_RECORD_SECONDS          = 0.4f
+    const val VAD_SILENCE_SECONDS         = 1.5f
+    const val VAD_SILENCE_THRESHOLD       = 0.012f
+    const val VAD_SPEECH_THRESHOLD        = 0.018f
+    const val VAD_INITIAL_TIMEOUT_SECONDS = 5.0f
+    const val VAD_SILENCE_MIN             = 0.5f
+    const val VAD_SILENCE_MAX             = 3.0f
 
     private const val PREF_VAD      = "vad_settings"
     private const val KEY_VAD_SILENCE = "silence_seconds"
