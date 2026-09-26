@@ -1046,7 +1046,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="日常聊天首選 · 約 170 MB"
+                                android:text="日常聊天首選 · 約 120 MB"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/md_theme_light_onPrimaryContainer"
@@ -1146,7 +1146,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="高精準旗艦 · 約 650 MB"
+                                android:text="高精準旗艦 · 約 900 MB"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/status_success_text"
