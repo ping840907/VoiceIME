@@ -97,6 +97,8 @@ class OnboardingActivity : AppCompatActivity() {
     private lateinit var btnDownloadQwen3: MaterialButton
 
     // Step 5 Views
+    private lateinit var layoutQwen3Preferences: LinearLayout
+    private lateinit var cardXasrOnlyNotice: MaterialCardView
     private lateinit var btnVadQuick: MaterialButton
     private lateinit var btnVadNormal: MaterialButton
     private lateinit var btnVadRelaxed: MaterialButton
@@ -219,12 +221,14 @@ class OnboardingActivity : AppCompatActivity() {
         btnDownloadQwen3 = findViewById(R.id.btn_onboarding_download_qwen3)
 
         // Step 5
-        btnVadQuick       = findViewById(R.id.btn_vad_quick)
-        btnVadNormal      = findViewById(R.id.btn_vad_normal)
-        btnVadRelaxed     = findViewById(R.id.btn_vad_relaxed)
-        switchPunctuation = findViewById(R.id.switch_onboarding_punctuation)
-        etTest            = findViewById(R.id.et_onboarding_test)
-        btnFinish         = findViewById(R.id.btn_onboarding_finish)
+        layoutQwen3Preferences = findViewById(R.id.layout_qwen3_preferences)
+        cardXasrOnlyNotice     = findViewById(R.id.card_xasr_only_notice)
+        btnVadQuick            = findViewById(R.id.btn_vad_quick)
+        btnVadNormal           = findViewById(R.id.btn_vad_normal)
+        btnVadRelaxed          = findViewById(R.id.btn_vad_relaxed)
+        switchPunctuation      = findViewById(R.id.switch_onboarding_punctuation)
+        etTest                 = findViewById(R.id.et_onboarding_test)
+        btnFinish              = findViewById(R.id.btn_onboarding_finish)
     }
 
     private fun setupListeners() {
@@ -334,13 +338,13 @@ class OnboardingActivity : AppCompatActivity() {
         // Step 5: Preferences
         fun updateVadButtons(selected: Float) {
             ModelConfig.setVadSilenceSeconds(this@OnboardingActivity, selected)
-            val activeColor = ContextCompat.getColor(this, R.color.md_theme_light_primary)
-            val inactiveColor = ContextCompat.getColor(this, R.color.surface_card)
-
             btnVadQuick.strokeWidth = if (selected == 0.8f) 4 else 1
             btnVadNormal.strokeWidth = if (selected == 1.5f) 4 else 1
             btnVadRelaxed.strokeWidth = if (selected == 2.5f) 4 else 1
         }
+
+        val initialVad = ModelConfig.vadSilenceSeconds(this)
+        updateVadButtons(initialVad)
 
         btnVadQuick.setOnClickListener { updateVadButtons(0.8f) }
         btnVadNormal.setOnClickListener { updateVadButtons(1.5f) }
@@ -408,6 +412,21 @@ class OnboardingActivity : AppCompatActivity() {
         updateStep1Status()
         updateStep3Status()
         updateStep4Status()
+        updateStep5Status()
+    }
+
+    private fun updateStep5Status() {
+        val qwen3Ready = ModelConfig.isQwen3Ready(this)
+        val xAsrReady = ModelConfig.isXAsrReady(this)
+
+        // 若使用者僅下載 X-ASR，隱藏 Qwen3 專屬的 VAD 與標點符號偏好，顯示專屬說明
+        if (xAsrReady && !qwen3Ready) {
+            layoutQwen3Preferences.visibility = View.GONE
+            cardXasrOnlyNotice.visibility = View.VISIBLE
+        } else {
+            layoutQwen3Preferences.visibility = View.VISIBLE
+            cardXasrOnlyNotice.visibility = View.GONE
+        }
     }
 
     private fun updateStep1Status() {
