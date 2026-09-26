@@ -113,7 +113,6 @@ class VoiceImeService : InputMethodService() {
     private lateinit var scrollSuggestions: ScrollView
     private lateinit var llSuggestions: ChipGroup
     private lateinit var layoutInterimDisplay: LinearLayout
-    private lateinit var tvInterimStatus: TextView
     private lateinit var scrollInterim: ScrollView
     private lateinit var tvInterimText: TextView
 
@@ -152,7 +151,6 @@ class VoiceImeService : InputMethodService() {
         scrollSuggestions    = view.findViewById(R.id.scroll_suggestions)
         llSuggestions        = view.findViewById(R.id.ll_suggestions)
         layoutInterimDisplay = view.findViewById(R.id.layout_interim_display)
-        tvInterimStatus      = view.findViewById(R.id.tv_interim_status)
         scrollInterim        = view.findViewById(R.id.scroll_interim)
         tvInterimText        = view.findViewById(R.id.tv_interim_text)
 
@@ -266,7 +264,6 @@ class VoiceImeService : InputMethodService() {
     private fun showInterimArea() {
         if (!::layoutInterimDisplay.isInitialized) return
         layoutInterimDisplay.visibility = View.VISIBLE
-        tvInterimStatus.text = "雙模型模式"
     }
 
     private fun hideInterimArea() {
@@ -275,21 +272,11 @@ class VoiceImeService : InputMethodService() {
         tvInterimText.text = ""
     }
 
-    private fun setInterimStatus(status: String) {
-        if (!::tvInterimStatus.isInitialized) return
-        tvInterimStatus.text = status
-    }
-
-    private fun updateInterimText(text: String, isPlaceholder: Boolean = false) {
+    private fun updateInterimText(text: String) {
         if (!::tvInterimText.isInitialized) return
         tvInterimText.text = text
-        if (isPlaceholder) {
-            tvInterimText.setTextColor(ContextCompat.getColor(this, R.color.ime_status_text))
-        } else {
-            tvInterimText.setTextColor(ContextCompat.getColor(this, R.color.ime_key_text))
-            scrollInterim.post {
-                scrollInterim.fullScroll(View.FOCUS_DOWN)
-            }
+        scrollInterim.post {
+            scrollInterim.fullScroll(View.FOCUS_DOWN)
         }
     }
 
@@ -298,7 +285,6 @@ class VoiceImeService : InputMethodService() {
             isRecording -> {
                 recorder.stopEarly()
                 tvStatus.text = "提早停止，辨識中…"
-                setInterimStatus("提早停止，辨識中…")
             }
             state == State.LOADING    -> { /* wait */ }
             state == State.PROCESSING -> { /* wait */ }
@@ -493,8 +479,7 @@ class VoiceImeService : InputMethodService() {
         hideSuggestions()
         setState(State.RECORDING)
 
-        showInterimArea()
-        updateInterimText("聆聽中…", isPlaceholder = true)
+        hideInterimArea()
 
         val audioBuffer = mutableListOf<FloatArray>()
         var accumulatedXAsr = ""
@@ -516,7 +501,8 @@ class VoiceImeService : InputMethodService() {
                             lastStreamingText = combined
                             Handler(Looper.getMainLooper()).post {
                                 if (isRecording) {
-                                    updateInterimText(combined, isPlaceholder = false)
+                                    showInterimArea()
+                                    updateInterimText(combined)
                                 }
                             }
                         }
@@ -543,7 +529,8 @@ class VoiceImeService : InputMethodService() {
             if (totalXAsrText.isNotEmpty()) {
                 lastStreamingText = totalXAsrText
                 Handler(Looper.getMainLooper()).post {
-                    updateInterimText(totalXAsrText, isPlaceholder = false)
+                    showInterimArea()
+                    updateInterimText(totalXAsrText)
                 }
             }
             runCatching { stream.release() }
@@ -556,7 +543,6 @@ class VoiceImeService : InputMethodService() {
             }
 
             setState(State.PROCESSING)
-            setInterimStatus("Qwen3 轉譯中…")
 
             val totalSamples = audioBuffer.sumOf { it.size }
             if (totalSamples == 0) {

@@ -42,33 +42,8 @@
         android:background="@drawable/bg_ime_interim"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="即時暫存 (X-ASR)"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="@color/ime_accent" />
-
-            <TextView
-                android:id="@+id/tv_interim_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="雙模型模式"
-                android:textSize="10sp"
-                android:textColor="@color/ime_status_text" />
-        </LinearLayout>
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <ScrollView
             android:id="@+id/scroll_interim"
@@ -83,8 +58,7 @@
                 android:layout_height="wrap_content"
                 android:textSize="14sp"
                 android:textColor="@color/ime_key_text"
-                android:lineSpacingExtra="2dp"
-                android:text="聆聽中…" />
+                android:lineSpacingExtra="2dp" />
         </ScrollView>
     </LinearLayout>
 
