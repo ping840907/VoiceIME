@@ -6,8 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.database.ContentObserver
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -44,6 +47,13 @@ class ImeSettingsActivity : AppCompatActivity() {
     private val downloader by lazy { ModelDownloader(this) }
     private var observeJob: Job? = null
     private var pendingDownloadEngine: String? = null
+
+    private val imeSettingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            super.onChange(selfChange)
+            updateAllStatus()
+        }
+    }
 
     // Node 1: Mic Root
     private lateinit var tvOverallBadge: TextView
@@ -107,6 +117,18 @@ class ImeSettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+
+        // 即時監聽系統預設輸入法與已啟用輸入法清單之變更
+        contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD),
+            false,
+            imeSettingsObserver
+        )
+        contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.ENABLED_INPUT_METHODS),
+            false,
+            imeSettingsObserver
+        )
 
         bindViews()
         setupListeners()
@@ -175,6 +197,14 @@ class ImeSettingsActivity : AppCompatActivity() {
         btnSwitchIme.setOnClickListener {
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showInputMethodPicker()
+            // 在點擊切換後啟動短期微輪詢（0.3s, 0.6s, 1s, 1.5s, 2.5s），確保在各品牌系統對話框關閉時即時刷新
+            scope.launch {
+                val checkDelays = listOf(300L, 600L, 1000L, 1500L, 2500L)
+                for (d in checkDelays) {
+                    delay(d)
+                    updateAllStatus()
+                }
+            }
         }
 
         // Node 2: Bubble & §3.2.1 高亮跳轉
@@ -298,8 +328,18 @@ class ImeSettingsActivity : AppCompatActivity() {
         updateAllStatus()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            updateAllStatus()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            contentResolver.unregisterContentObserver(imeSettingsObserver)
+        } catch (_: Exception) {}
         scope.coroutineContext[Job]?.cancel()
     }
 
