@@ -9,10 +9,11 @@
     android:paddingTop="16dp"
     android:paddingBottom="8dp">
 
+    <!-- 目標詞彙 / 正確文字 -->
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="詞彙內容（如：人名、術語）"
+        android:hint="目標詞彙 / 正確文字（必填）"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         app:boxCornerRadiusTopStart="12dp"
         app:boxCornerRadiusTopEnd="12dp"
@@ -24,7 +25,36 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="text"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- 原辨識字 / 欲替換詞（選填） -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="原辨識字 / 欲替換詞（選填）"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        app:boxCornerRadiusTopStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusBottomEnd="12dp"
+        android:layout_marginTop="12dp">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_from"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:textSize="15sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="提示：若填寫「原辨識字」，辨識出該字時將自動替換為「目標詞彙」；若留空，則直接作為專屬詞庫加強語音識別。"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="10dp"
+        android:lineSpacingExtra="2dp" />
 
 </LinearLayout>

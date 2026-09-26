@@ -1,4 +1,4 @@
-﻿package com.ping.voiceime
+package com.ping.voiceime
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -55,17 +55,20 @@ class DictSettingsActivity : AppCompatActivity() {
     private fun showAddDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_add_entry, null)
         val etTo = view.findViewById<EditText>(R.id.et_to)
+        val etFrom = view.findViewById<EditText>(R.id.et_from)
 
         AlertDialog.Builder(this)
-            .setTitle("新增專屬詞彙")
+            .setTitle("新增專屬詞彙 / 替換規則")
             .setView(view)
             .setPositiveButton("新增") { _, _ ->
                 val to = etTo.text.toString().trim()
+                val fromRaw = etFrom.text.toString().trim()
                 if (to.isBlank()) {
-                    Toast.makeText(this, "請輸入詞彙內容", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "請輸入目標詞彙內容", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                UserDictionary.add(this, to, to)
+                val from = if (fromRaw.isNotBlank()) fromRaw else to
+                UserDictionary.add(this, from, to)
                 refreshList()
             }
             .setNegativeButton("取消", null)
@@ -84,6 +87,7 @@ class DictSettingsActivity : AppCompatActivity() {
 
         inner class VH(view: View) : RecyclerView.ViewHolder(view) {
             val tvTo: TextView      = view.findViewById(R.id.tv_to)
+            val tvMapping: TextView = view.findViewById(R.id.tv_mapping)
             val btnDel: ImageButton = view.findViewById(R.id.btn_delete)
         }
 
@@ -95,6 +99,12 @@ class DictSettingsActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: VH, position: Int) {
             val (from, to) = items[position]
             holder.tvTo.text = to
+            if (from != to) {
+                holder.tvMapping.visibility = View.VISIBLE
+                holder.tvMapping.text = "自動替換：$from → $to"
+            } else {
+                holder.tvMapping.visibility = View.GONE
+            }
             holder.btnDel.setOnClickListener { onDelete(from) }
         }
     }

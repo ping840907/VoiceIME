@@ -48,10 +48,12 @@ object UserDictionary {
 
     /** Apply dictionary substitutions to [text], longest key first. */
     fun apply(text: String, entries: Map<String, String>): String {
-        if (entries.isEmpty()) return text
+        if (entries.isEmpty() || text.isEmpty()) return text
         var result = text
         entries.entries.sortedByDescending { it.key.length }.forEach { (from, to) ->
-            result = result.replace(from, to)
+            if (from != to && from.isNotEmpty()) {
+                result = result.replace(from, to)
+            }
         }
         return result
     }

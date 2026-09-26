@@ -1,6 +1,7 @@
 package com.ping.voiceime.engine
 
 import android.content.Context
+import com.github.houbb.opencc4j.util.ZhTwConverterUtil
 
 object ModelConfig {
 
@@ -122,6 +123,34 @@ object ModelConfig {
 
     fun filterChinesePunctuation(text: String): String =
         text.replace(CHINESE_PUNCTUATION_REGEX, "")
+
+    // ── Traditional Chinese (Taiwan MOE Standard) ────────────────────────────
+    /**
+     * Converts text to Taiwan Traditional Chinese (s2tw) using ZhTwConverterUtil,
+     * then applies Taiwan MOE standard normalization:
+     * - 纔 -> 才 (e.g. 剛纔 -> 剛才, 纔會 -> 才會, 方纔 -> 方才)
+     * - 裏 -> 裡 (e.g. 家裏 -> 家裡, 心裏 -> 心裡, 這裏 -> 這裡, 那裏 -> 那裡, 裏面 -> 裡面)
+     * - 着 -> 著 (e.g. 看着 -> 看著, 着火 -> 著火, 跟着 -> 跟著)
+     */
+    fun toTaiwanTraditional(raw: String): String {
+        val converted = try {
+            ZhTwConverterUtil.toTraditional(raw)
+        } catch (_: Exception) {
+            raw
+        }
+        return normalizeTaiwanVariants(converted)
+    }
+
+    /**
+     * Normalizes non-Taiwan-standard variants (like 纔, 裏, 着) into standard Taiwan characters (才, 裡, 著).
+     */
+    fun normalizeTaiwanVariants(text: String): String {
+        if (text.isEmpty()) return text
+        return text
+            .replace('纔', '才')
+            .replace('裏', '裡')
+            .replace('着', '著')
+    }
 
     // ── Model Readiness Checks ────────────────────────────────────────────────
     fun isXAsrReady(context: Context): Boolean {

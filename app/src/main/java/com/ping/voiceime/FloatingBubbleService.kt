@@ -33,7 +33,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
-import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.google.android.material.card.MaterialCardView
 import com.k2fsa.sherpa.onnx.OnlineStream
 import com.ping.voiceime.engine.AudioRecorder
@@ -1038,19 +1037,15 @@ class FloatingBubbleService : Service() {
 
     private fun postProcess(raw: String): String {
         val converted = if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR && !isDualEngineActive()) {
-            raw
+            ModelConfig.normalizeTaiwanVariants(raw)
         } else {
-            try {
-                ZhConverterUtil.toTraditional(raw)
-            } catch (ex: Exception) {
-                Log.w(TAG, "OpenCC conversion failed: ${ex.message}")
-                raw
-            }
+            ModelConfig.toTaiwanTraditional(raw)
         }
+        val userReplaced = UserDictionary.apply(converted, UserDictionary.load(this))
         return if (ModelConfig.isFilterPunctuationEnabled(this)) {
-            ModelConfig.filterChinesePunctuation(converted)
+            ModelConfig.filterChinesePunctuation(userReplaced)
         } else {
-            converted
+            userReplaced
         }
     }
 

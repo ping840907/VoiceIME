@@ -17,6 +17,35 @@ class CircuitLogicTest {
     }
 
     @Test
+    fun testTaiwanTraditionalConversion() {
+        val input = "看着刚才在家里里面"
+        val expected = "看著剛才在家裡裡面"
+        val actual = ModelConfig.toTaiwanTraditional(input)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun testTaiwanVariantsNormalization() {
+        val input = "剛纔心裏着火了"
+        val expected = "剛才心裡著火了"
+        val actual = ModelConfig.normalizeTaiwanVariants(input)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun testUserDictionaryApply() {
+        val dict = mapOf(
+            "語音辨識" to "VoiceIME",
+            "着" to "著",
+            "通用詞" to "通用詞"
+        )
+        val input = "這是語音辨識測試，看着螢幕"
+        val expected = "這是VoiceIME測試，看著螢幕"
+        val actual = UserDictionary.apply(input, dict)
+        assertEquals(expected, actual)
+    }
+
+    @Test
     fun testCircuitLogicScenarioA() {
         // 情境 A:
         // mic=true, IME ok, Bubble ok, X_ASR ok, QWEN3 ok, selected=X_ASR

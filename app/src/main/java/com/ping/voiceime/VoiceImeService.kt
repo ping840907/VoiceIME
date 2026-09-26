@@ -21,7 +21,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.ping.voiceime.engine.AudioRecorder
@@ -715,17 +714,16 @@ class VoiceImeService : InputMethodService() {
         UserDictionary.load(this).values.distinct().sorted().joinToString("\n")
 
     private fun postProcess(raw: String): String {
-        if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) return raw
-        val traditional = try {
-            ZhConverterUtil.toTraditional(raw)
-        } catch (ex: Exception) {
-            Log.w(TAG, "OpenCC failed: ${ex.message}")
-            raw
-        }
-        return if (ModelConfig.isFilterPunctuationEnabled(this)) {
-            ModelConfig.filterChinesePunctuation(traditional)
+        val converted = if (ModelConfig.selectedEngine(this) == ModelConfig.ENGINE_X_ASR) {
+            ModelConfig.normalizeTaiwanVariants(raw)
         } else {
-            traditional
+            ModelConfig.toTaiwanTraditional(raw)
+        }
+        val userReplaced = UserDictionary.apply(converted, UserDictionary.load(this))
+        return if (ModelConfig.isFilterPunctuationEnabled(this)) {
+            ModelConfig.filterChinesePunctuation(userReplaced)
+        } else {
+            userReplaced
         }
     }
 
