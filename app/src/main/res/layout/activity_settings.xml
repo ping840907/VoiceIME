@@ -53,6 +53,18 @@
                     android:layout_marginTop="2dp" />
             </LinearLayout>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_open_onboarding"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="新手引導"
+                android:textSize="11sp"
+                app:cornerRadius="16dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:layout_marginEnd="8dp" />
+
             <TextView
                 android:id="@+id/tv_overall_badge"
                 android:layout_width="wrap_content"

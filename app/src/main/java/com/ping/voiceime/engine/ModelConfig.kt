@@ -145,4 +145,29 @@ object ModelConfig {
 
     fun isModelReady(context: Context, engine: String): Boolean =
         if (engine == ENGINE_X_ASR) isXAsrReady(context) else isQwen3Ready(context)
+
+    // ── Onboarding / Setup Wizard ─────────────────────────────────────────────
+    const val MODE_BUBBLE = "bubble"
+    const val MODE_KEYBOARD = "keyboard"
+    const val MODE_BOTH = "both"
+
+    private const val PREF_ONBOARDING = "onboarding_settings"
+    private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
+    private const val KEY_ONBOARDING_MODE = "onboarding_mode"
+
+    fun isOnboardingCompleted(context: Context): Boolean =
+        context.getSharedPreferences(PREF_ONBOARDING, Context.MODE_PRIVATE)
+            .getBoolean(KEY_ONBOARDING_COMPLETED, false)
+
+    fun setOnboardingCompleted(context: Context, completed: Boolean) =
+        context.getSharedPreferences(PREF_ONBOARDING, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+
+    fun getOnboardingMode(context: Context): String =
+        context.getSharedPreferences(PREF_ONBOARDING, Context.MODE_PRIVATE)
+            .getString(KEY_ONBOARDING_MODE, MODE_BOTH) ?: MODE_BOTH
+
+    fun setOnboardingMode(context: Context, mode: String) =
+        context.getSharedPreferences(PREF_ONBOARDING, Context.MODE_PRIVATE)
+            .edit().putString(KEY_ONBOARDING_MODE, mode).apply()
 }

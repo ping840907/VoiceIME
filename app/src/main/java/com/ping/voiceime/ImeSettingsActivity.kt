@@ -55,8 +55,11 @@ class ImeSettingsActivity : AppCompatActivity() {
         }
     }
 
-    // Node 1: Mic Root
+    // Header
     private lateinit var tvOverallBadge: TextView
+    private lateinit var btnOpenOnboarding: MaterialButton
+
+    // Node 1: Mic Root
     private lateinit var tvMicStatus: TextView
     private lateinit var btnGrantMic: MaterialButton
 
@@ -116,6 +119,14 @@ class ImeSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 初次開啟導向新手設置引導頁
+        if (!ModelConfig.isOnboardingCompleted(this)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_settings)
 
         // 即時監聽系統預設輸入法與已啟用輸入法清單之變更
@@ -138,6 +149,7 @@ class ImeSettingsActivity : AppCompatActivity() {
     private fun bindViews() {
         // Overall
         tvOverallBadge = findViewById(R.id.tv_overall_badge)
+        btnOpenOnboarding = findViewById(R.id.btn_open_onboarding)
 
         // Node 1: Mic
         tvMicStatus = findViewById(R.id.tv_mic_status)
@@ -184,6 +196,10 @@ class ImeSettingsActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        btnOpenOnboarding.setOnClickListener {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+        }
+
         // Node 1: Mic
         btnGrantMic.setOnClickListener {
             requestMic.launch(Manifest.permission.RECORD_AUDIO)
